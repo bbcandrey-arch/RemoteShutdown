@@ -45,6 +45,7 @@ builder.Services.AddSingleton(sp => new PowerActionsService(sp.GetRequiredServic
 builder.Services.AddSingleton<VolumeControlService>();
 builder.Services.AddSingleton<MetricsCollector>();
 builder.Services.AddSingleton<TimerRepository>();
+builder.Services.AddSingleton<TaskLogStore>();
 builder.Services.AddSingleton<TimerSchedulerService>();
 builder.Services.AddSingleton<WebSocketEventHub>();
 builder.Services.AddSingleton<IAgentEventPublisher>(sp => sp.GetRequiredService<WebSocketEventHub>());

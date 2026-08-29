@@ -17,7 +17,10 @@ public sealed class SettingsForm : Form
     private readonly AgentDatabase _db;
     private readonly SettingsStore _settings;
     private readonly PairedDeviceStore _pairedDevices;
+    private readonly TaskLogStore _taskLog;
 
+    private TabControl _tabs = null!;
+    private ListView _taskLogListView = null!;
     private PictureBox _qrPictureBox = null!;
     private Label _connectionInfoLabel = null!;
     private ComboBox _interfaceComboBox = null!;
@@ -35,11 +38,12 @@ public sealed class SettingsForm : Form
     /// прячет, а не завершает процесс, т.к. трей должен продолжать работать. false — для
     /// автономного запуска (`--settings`), где закрытие окна должно завершить приложение.
     /// </param>
-    public SettingsForm(AgentDatabase db, SettingsStore settings, bool hideInsteadOfClose = true)
+    public SettingsForm(AgentDatabase db, SettingsStore settings, bool hideInsteadOfClose = true, TaskLogStore? taskLog = null)
     {
         _db = db;
         _settings = settings;
         _pairedDevices = new PairedDeviceStore(db);
+        _taskLog = taskLog ?? new TaskLogStore(db);
 
         Text = "Remote Shutdown Agent — настройки";
         Width = 560;
@@ -49,14 +53,16 @@ public sealed class SettingsForm : Form
         if (hideInsteadOfClose)
             FormClosing += (_, e) => { e.Cancel = true; Hide(); }; // трей живёт дольше окна — просто прячем его
 
-        var tabs = new TabControl { Dock = DockStyle.Fill };
-        tabs.TabPages.Add(BuildPairingTab());
-        tabs.TabPages.Add(BuildDevicesTab());
-        tabs.TabPages.Add(BuildGeneralTab());
-        Controls.Add(tabs);
+        _tabs = new TabControl { Dock = DockStyle.Fill };
+        _tabs.TabPages.Add(BuildPairingTab());
+        _tabs.TabPages.Add(BuildDevicesTab());
+        _tabs.TabPages.Add(BuildTaskLogTab());
+        _tabs.TabPages.Add(BuildGeneralTab());
+        Controls.Add(_tabs);
 
         RefreshPairingTab();
         RefreshDevicesTab();
+        RefreshTaskLogTab();
         RefreshGeneralTab();
     }
 
@@ -352,6 +358,50 @@ public sealed class SettingsForm : Form
 
         _pairedDevices.Revoke(clientId);
         RefreshDevicesTab();
+    }
+
+    // ---- Вкладка "Журнал": список задач, прилетевших с телефона (docs/roadmap.md,
+    // "Уведомления и журнал задач") — те же события, о которых трей показывает
+    // баллон-уведомления (TrayApplicationContext.PollTaskLog), но с историей. ----
+    private TabPage BuildTaskLogTab()
+    {
+        var page = new TabPage("Журнал") { AutoScroll = true };
+        var layout = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2, Padding = new Padding(16) };
+        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+        _taskLogListView = new ListView { Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true };
+        _taskLogListView.Columns.Add("Время", 130);
+        _taskLogListView.Columns.Add("Описание", 380);
+        layout.Controls.Add(_taskLogListView, 0, 0);
+
+        var refreshButton = new Button { Text = "Обновить", AutoSize = true };
+        refreshButton.Click += (_, _) => RefreshTaskLogTab();
+        layout.Controls.Add(refreshButton, 0, 1);
+
+        page.Controls.Add(layout);
+        return page;
+    }
+
+    private void RefreshTaskLogTab()
+    {
+        _taskLogListView.Items.Clear();
+        foreach (var entry in _taskLog.ListRecent(200))
+        {
+            var item = new ListViewItem(entry.OccurredAtUtc.ToLocalTime().ToString("dd.MM.yy HH:mm:ss"));
+            item.SubItems.Add(entry.Description);
+            if (entry.Kind == "error") item.ForeColor = System.Drawing.Color.DarkRed;
+            _taskLogListView.Items.Add(item);
+        }
+    }
+
+    /// <summary>Вызывается треем (TrayApplicationContext.PollTaskLog) при появлении новых
+    /// записей — обновляет список, только если окно сейчас открыто на вкладке "Журнал",
+    /// чтобы не дёргать UI впустую, если пользователь смотрит другую вкладку/окно скрыто.</summary>
+    public void RefreshTaskLogIfVisible()
+    {
+        if (Visible && _tabs.SelectedTab?.Text == "Журнал")
+            RefreshTaskLogTab();
     }
 
     // ---- Вкладка "Общие": порт, тестовый режим, автозагрузка ----

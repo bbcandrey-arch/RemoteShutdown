@@ -19,8 +19,8 @@ public class TimerSchedulerServiceTests : IDisposable
         _repository = new TimerRepository(db);
     }
 
-    private TimerSchedulerService CreateScheduler() =>
-        new(_repository, new PowerActionsService(), new NullAgentEventPublisher(), NullLogger<TimerSchedulerService>.Instance);
+    private TimerSchedulerService CreateScheduler(TaskLogStore? taskLog = null) =>
+        new(_repository, new PowerActionsService(), new NullAgentEventPublisher(), NullLogger<TimerSchedulerService>.Instance, taskLog);
 
     [Fact]
     public void Create_persists_the_timer_as_pending()
@@ -84,6 +84,22 @@ public class TimerSchedulerServiceTests : IDisposable
         var result = scheduler.Cancel(timer.TimerId);
 
         Assert.Equal(TimerStatus.Fired, result!.Status);
+    }
+
+    [Fact]
+    public void Create_and_Cancel_write_entries_to_the_task_log_when_one_is_wired_up()
+    {
+        var db = new AgentDatabase(_dbPath);
+        var taskLog = new TaskLogStore(db);
+        using var scheduler = CreateScheduler(taskLog);
+
+        var timer = scheduler.Create(ScheduledAction.Shutdown, DateTime.UtcNow.AddMinutes(30), "client-1");
+        scheduler.Cancel(timer.TimerId);
+
+        var entries = taskLog.ListRecent();
+        Assert.Equal(2, entries.Count);
+        Assert.Contains(entries, e => e.Kind == "timerCreated");
+        Assert.Contains(entries, e => e.Kind == "timerCancelled");
     }
 
     public void Dispose()

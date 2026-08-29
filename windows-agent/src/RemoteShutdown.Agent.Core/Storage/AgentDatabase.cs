@@ -57,6 +57,18 @@ public sealed class AgentDatabase
                 Key TEXT PRIMARY KEY,
                 Value TEXT NOT NULL
             );
+
+            -- Журнал прилетевших с телефона задач (команды питания, создание/отмена
+            -- таймеров, срабатывание таймера) — источник и для уведомлений в трее
+            -- (TaskLogWatcher), и для вкладки "Журнал" в настройках. См. docs/roadmap.md.
+            CREATE TABLE IF NOT EXISTS TaskLog (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                OccurredAtUtc TEXT NOT NULL,
+                Kind TEXT NOT NULL,
+                Description TEXT NOT NULL,
+                ClientId TEXT NULL,
+                DeviceName TEXT NULL
+            );
             """;
         cmd.ExecuteNonQuery();
     }

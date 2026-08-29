@@ -9,6 +9,9 @@ public sealed class TrayApplicationContext : ApplicationContext
     private readonly AgentProcessManager _agentProcess = new();
     private readonly AgentDatabase _db;
     private readonly SettingsStore _settingsStore;
+    private readonly TaskLogStore _taskLog;
+    private readonly System.Windows.Forms.Timer _taskLogPoller;
+    private int _lastSeenTaskLogId;
     private SettingsForm? _settingsForm;
 
     public TrayApplicationContext()
@@ -16,6 +19,7 @@ public sealed class TrayApplicationContext : ApplicationContext
         _db = new AgentDatabase();
         _db.EnsureCreated();
         _settingsStore = new SettingsStore(_db);
+        _taskLog = new TaskLogStore(_db);
         if (_settingsStore.Get(SettingsStore.Keys.TestMode) is null)
             _settingsStore.Set(SettingsStore.Keys.TestMode, "true");
 
@@ -35,7 +39,34 @@ public sealed class TrayApplicationContext : ApplicationContext
         };
         _notifyIcon.DoubleClick += (_, _) => ShowSettings();
 
+        // Не уведомляем о задачах, случившихся до запуска трея (например, восстановленных
+        // таймеров прошлой сессии) — только о новых, прилетевших пока трей открыт.
+        _lastSeenTaskLogId = _taskLog.GetMaxId();
+
+        // Поллинг вместо WebSocket/IPC: и трей, и Api читают одну и ту же SQLite-БД,
+        // отдельный канал связи между процессами не нужен — см. docs/roadmap.md,
+        // "Уведомления и журнал задач".
+        _taskLogPoller = new System.Windows.Forms.Timer { Interval = 3000 };
+        _taskLogPoller.Tick += (_, _) => PollTaskLog();
+        _taskLogPoller.Start();
+
         TryStartAgent();
+    }
+
+    private void PollTaskLog()
+    {
+        var newEntries = _taskLog.ListSince(_lastSeenTaskLogId);
+        if (newEntries.Count == 0) return;
+
+        _lastSeenTaskLogId = newEntries[^1].Id;
+        foreach (var entry in newEntries)
+        {
+            var icon = entry.Kind == "error" ? ToolTipIcon.Error : ToolTipIcon.Info;
+            _notifyIcon.ShowBalloonTip(5000, "Remote Shutdown Agent", entry.Description, icon);
+        }
+
+        // Если открыто окно настроек на вкладке "Журнал" — сразу обновляем список.
+        _settingsForm?.RefreshTaskLogIfVisible();
     }
 
     private void TryStartAgent()
@@ -64,12 +95,13 @@ public sealed class TrayApplicationContext : ApplicationContext
             _settingsForm.Activate();
             return;
         }
-        _settingsForm = new SettingsForm(_db, _settingsStore);
+        _settingsForm = new SettingsForm(_db, _settingsStore, taskLog: _taskLog);
         _settingsForm.Show();
     }
 
     private void ExitApplication()
     {
+        _taskLogPoller.Stop();
         _notifyIcon.Visible = false;
         _agentProcess.Stop();
         Application.Exit();
