@@ -47,8 +47,18 @@
     события и периодическая рассылка метрик по WS `/events`.
   - `Program.cs` — DI, Kestrel HTTPS, middleware pipeline, восстановление
     таймеров при старте.
+- **RemoteShutdown.Agent.Tray** (WinForms) — видимая часть агента для
+  пользователя: иконка в трее, запускает `RemoteShutdown.Agent.Api.exe` как
+  дочерний процесс, окно настроек (`SettingsForm`) с тремя вкладками:
+  - Сопряжение — QR-код (`Core/Pairing/PairingQrService`), выбор сетевого
+    интерфейса при нескольких IP, установка/просмотр PIN.
+  - Устройства — список сопряжённых, отзыв доступа.
+  - Общие — порт, тестовый режим (см. ниже), автозагрузка
+    (`AutostartService`, реестр `HKCU\...\Run`).
+  Запуск: сама иконка трея, либо `RemoteShutdown.Agent.Tray.exe --settings`
+  чтобы сразу открыть окно.
 - **RemoteShutdown.Agent.Service** — пока пустой плейсхолдер, зарезервирован
-  под миграцию в Windows Service (см. roadmap, этап 7).
+  под миграцию в Windows Service (см. roadmap, этап 5).
 - **tests/RemoteShutdown.Agent.Core.Tests** — 19 юнит-тестов (HMAC, PIN,
   nonce-кэш, pairing, планировщик таймеров), все проходят.
 
@@ -94,6 +104,7 @@ Windows Agent на хосте, `10.0.2.2:18789`): discovery вручную по 
   `54288-54387` оказался зарезервирован под динамический NAT
   (`netsh interface ipv4 show excludedportrange protocol=tcp`). Продуктовый
   дефолт в `docs/protocol.md` должен оставаться `54321`.
-- PIN сейчас можно установить только прямой правкой SQLite — нет UI.
-- Discovery (mDNS/UDP broadcast) ещё не реализован — только ручной ввод IP.
-- QR-код пейринг ещё не реализован.
+- Discovery (mDNS/UDP broadcast) ещё не реализован — только ручной ввод IP
+  или QR-код (host+port), см. ниже.
+- QR-код кодирует только host+port (не fingerprint/токен) — PIN всё ещё
+  вводится отдельно, см. docs/security.md.

@@ -1,0 +1,22 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationIcon />
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\RemoteShutdown.Agent.Core\RemoteShutdown.Agent.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Для показа QR-кода сопряжения прямо в настройках (тот же PNG, который
+         агент сохраняет при старте) не нужна отдельная генерация — Tray просто
+         перечитывает файл. QRCoder тут не нужен. -->
+  </ItemGroup>
+
+</Project>

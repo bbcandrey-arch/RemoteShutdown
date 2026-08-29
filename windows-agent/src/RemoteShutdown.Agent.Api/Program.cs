@@ -4,6 +4,7 @@ using RemoteShutdown.Agent.Api.Events;
 using RemoteShutdown.Agent.Api.Middleware;
 using RemoteShutdown.Agent.Core.Events;
 using RemoteShutdown.Agent.Core.Metrics;
+using RemoteShutdown.Agent.Core.Pairing;
 using RemoteShutdown.Agent.Core.Power;
 using RemoteShutdown.Agent.Core.Security;
 using RemoteShutdown.Agent.Core.Storage;
@@ -21,6 +22,9 @@ var settingsStore = new SettingsStore(db);
 var port = int.TryParse(settingsStore.Get(SettingsStore.Keys.Port), out var configuredPort) ? configuredPort : DefaultPort;
 if (settingsStore.Get(SettingsStore.Keys.Port) is null)
     settingsStore.Set(SettingsStore.Keys.Port, DefaultPort.ToString());
+// Заглушка опасных действий включена по умолчанию для незнакомой БД — см. docs/security.md.
+if (settingsStore.Get(SettingsStore.Keys.TestMode) is null)
+    settingsStore.Set(SettingsStore.Keys.TestMode, "true");
 
 builder.WebHost.ConfigureKestrel(options =>
 {
@@ -37,7 +41,7 @@ builder.Services.AddSingleton(settingsStore);
 builder.Services.AddSingleton<PairedDeviceStore>();
 builder.Services.AddSingleton<PairingService>();
 builder.Services.AddSingleton<NonceCache>();
-builder.Services.AddSingleton<PowerActionsService>();
+builder.Services.AddSingleton(sp => new PowerActionsService(sp.GetRequiredService<SettingsStore>()));
 builder.Services.AddSingleton<VolumeControlService>();
 builder.Services.AddSingleton<MetricsCollector>();
 builder.Services.AddSingleton<TimerRepository>();
@@ -75,7 +79,8 @@ app.Services.GetRequiredService<TimerSchedulerService>().RestoreFromStorage();
 // QR-код для экрана сопряжения (docs/roadmap.md, "QR-код пейринг") — сохраняем рядом
 // с БД агента, чтобы пользователь мог открыть картинку и показать её камере телефона.
 var qrDirectory = Path.GetDirectoryName(db.DbPath) ?? AppContext.BaseDirectory;
-var qrPath = PairingQrService.GenerateAndSave(port, qrDirectory);
+var preferredIp = settingsStore.Get(SettingsStore.Keys.PreferredIp);
+var qrPath = PairingQrService.GenerateAndSave(port, qrDirectory, preferredIp);
 if (qrPath is not null)
     Console.WriteLine($"QR-код для сопряжения сохранён: {qrPath}");
 else

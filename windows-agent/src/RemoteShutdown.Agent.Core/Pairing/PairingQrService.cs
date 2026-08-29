@@ -2,7 +2,7 @@ using System.Text.Json;
 using QRCoder;
 using RemoteShutdown.Agent.Core.Network;
 
-namespace RemoteShutdown.Agent.Api;
+namespace RemoteShutdown.Agent.Core.Pairing;
 
 /// <summary>
 /// Генерирует QR-код для экрана сопряжения (docs/roadmap.md, "QR-код пейринг", MVP-версия):
@@ -19,9 +19,13 @@ public static class PairingQrService
     /// Сохраняет PNG с QR-кодом рядом с БД агента и возвращает путь к файлу, либо null,
     /// если не удалось определить локальный IPv4-адрес (например, нет сетевых интерфейсов).
     /// </summary>
-    public static string? GenerateAndSave(int port, string outputDirectory)
+    /// <param name="host">
+    /// Явный IP (например, выбранный пользователем интерфейс в Settings UI, когда на
+    /// машине их несколько) — если null, берётся первый найденный автоматически.
+    /// </param>
+    public static string? GenerateAndSave(int port, string outputDirectory, string? host = null)
     {
-        var host = NetworkInfoService.GetPrimaryIPv4Address();
+        host ??= NetworkInfoService.GetPrimaryIPv4Address();
         if (host is null) return null;
 
         var payload = JsonSerializer.Serialize(new PairingQrPayload(host, port));

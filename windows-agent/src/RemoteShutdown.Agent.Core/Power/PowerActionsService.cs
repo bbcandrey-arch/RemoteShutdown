@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
+using RemoteShutdown.Agent.Core.Storage;
 
 namespace RemoteShutdown.Agent.Core.Power;
 
@@ -28,16 +29,43 @@ public sealed class PowerActionsService
     [DllImport("powrprof.dll", SetLastError = true)]
     private static extern bool SetSuspendState(bool hibernate, bool forceCritical, bool disableWakeEvent);
 
+    private readonly SettingsStore? _settingsStore;
+
     /// <summary>
-    /// TEMPORARY dev/test safety switch: when true (the current default), every action
-    /// this service would normally perform instead just launches Calculator, so manual
-    /// smoke-testing (curl/PowerShell against a real machine, or a live timer firing)
-    /// can't actually shut down / restart / sleep / lock the developer's PC again.
-    /// A real shutdown happened this way once already — see project history. Flip this
-    /// to false (or wire up a proper config setting) only once there's a safe throwaway
-    /// test machine/VM to point the agent at.
+    /// Test-only/no-store fallback constructor (used by unit tests) — behaves as if
+    /// test mode is permanently on, matching the historical hardcoded-true default.
     /// </summary>
-    public bool SimulateDangerousActions { get; set; } = true;
+    public PowerActionsService() { }
+
+    /// <summary>
+    /// Constructor used by the running agent: test mode is now a persisted setting
+    /// (SettingsStore.Keys.TestMode) toggled from the tray Settings UI, so it can be
+    /// switched on/off without a rebuild or an agent restart — see docs/security.md,
+    /// "Заглушка опасных действий".
+    /// </summary>
+    public PowerActionsService(SettingsStore settingsStore) => _settingsStore = settingsStore;
+
+    /// <summary>
+    /// Dev/test safety switch: when true, every action this service would normally
+    /// perform instead just launches Calculator, so manual smoke-testing (curl/
+    /// PowerShell against a real machine, or a live timer firing) can't actually shut
+    /// down / restart / sleep / lock the machine. A real shutdown happened this way
+    /// once already — see project history. Default is true (safe) whenever the
+    /// setting has never been explicitly set.
+    /// </summary>
+    public bool SimulateDangerousActions
+    {
+        get => _settingsStore is null
+            ? _simulateDangerousActionsFallback
+            : _settingsStore.Get(SettingsStore.Keys.TestMode) != "false";
+        set
+        {
+            if (_settingsStore is null) _simulateDangerousActionsFallback = value;
+            else _settingsStore.Set(SettingsStore.Keys.TestMode, value ? "true" : "false");
+        }
+    }
+
+    private bool _simulateDangerousActionsFallback = true;
 
     public void Execute(PowerAction action, int delaySeconds = 0)
     {

@@ -34,5 +34,27 @@ public sealed class SettingsStore
         public const string PinHash = "pin_hash";
         public const string Port = "port";
         public const string CertThumbprint = "cert_thumbprint";
+
+        /// <summary>
+        /// "true"/"false" — переключается из настроек трей-приложения без перезапуска
+        /// агента (PowerActionsService перечитывает это значение при каждом выполнении
+        /// команды). См. docs/security.md, "Заглушка опасных действий".
+        /// </summary>
+        public const string TestMode = "test_mode";
+
+        /// <summary>
+        /// DPAPI-защищённая (DpapiProtector.ProtectPin) копия текущего PIN в base64 —
+        /// хранится ТОЛЬКО чтобы показать его в окне настроек трея (пользователю нужно
+        /// вводить его на телефоне при пейринге). Проверка PIN всегда идёт через PinHash,
+        /// эта запись на неё никак не влияет.
+        /// </summary>
+        public const string PinPlainProtected = "pin_plain_protected";
+
+        /// <summary>
+        /// IPv4-адрес, выбранный пользователем в настройках, если на машине несколько
+        /// сетевых интерфейсов (Wi-Fi + Ethernet, VPN и т.д.) — иначе агент берёт первый
+        /// найденный, что не всегда тот, что нужен. См. docs/roadmap.md.
+        /// </summary>
+        public const string PreferredIp = "preferred_ip";
     }
 }

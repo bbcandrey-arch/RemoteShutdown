@@ -28,8 +28,17 @@ public static class NetworkInfoService
     /// для QR-кода пейринга (docs/roadmap.md, "QR-код пейринг"): телефон сканирует
     /// host+port вместо ручного ввода IP.
     /// </summary>
-    public static string? GetPrimaryIPv4Address()
+    public static string? GetPrimaryIPv4Address() => GetAllIPv4Addresses().FirstOrDefault().Address;
+
+    /// <summary>
+    /// Все IPv4-адреса активных не-loopback интерфейсов с их именами (Wi-Fi, Ethernet,
+    /// VPN и т.д.) — на машине с несколькими интерфейсами "первый попавшийся" не всегда
+    /// тот, что реально в одной Wi-Fi сети с телефоном, поэтому в Settings UI пользователь
+    /// выбирает нужный сам (SettingsStore.Keys.PreferredIp), см. docs/roadmap.md.
+    /// </summary>
+    public static IReadOnlyList<(string InterfaceName, string Address)> GetAllIPv4Addresses()
     {
+        var result = new List<(string, string)>();
         foreach (var nic in NetworkInterface.GetAllNetworkInterfaces())
         {
             if (nic.OperationalStatus != OperationalStatus.Up || nic.NetworkInterfaceType == NetworkInterfaceType.Loopback)
@@ -38,10 +47,10 @@ public static class NetworkInfoService
             foreach (var addr in nic.GetIPProperties().UnicastAddresses)
             {
                 if (addr.Address.AddressFamily == AddressFamily.InterNetwork)
-                    return addr.Address.ToString();
+                    result.Add((nic.Name, addr.Address.ToString()));
             }
         }
-        return null;
+        return result;
     }
 
     /// <summary>Best-effort broadcast address for the primary IPv4 interface (e.g. 192.168.1.255).</summary>
