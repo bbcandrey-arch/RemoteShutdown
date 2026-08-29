@@ -24,14 +24,18 @@ class PairingAwaitingPin extends PairingState {
   final int port;
   final String pairingSessionId;
   final String observedFingerprint;
-  final String deviceName;
+
+  /// Имя ПК (не телефона!) — из QR-кода, если он его нёс, иначе из ответа /pair/init
+  /// (см. PairingController.startPairing). Показывается в приложении как имя этого
+  /// сопряжения (заголовок Dashboard, список ПК) — docs/roadmap.md.
+  final String pcName;
 
   PairingAwaitingPin({
     required this.host,
     required this.port,
     required this.pairingSessionId,
     required this.observedFingerprint,
-    required this.deviceName,
+    required this.pcName,
   });
 }
 
@@ -61,7 +65,14 @@ class PairingController extends StateNotifier<PairingState> {
         _profileStore = profileStore ?? DeviceProfileStore(),
         super(PairingIdle());
 
-  Future<void> startPairing({required String host, required int port, required String deviceName}) async {
+  /// [qrDeviceName] — имя ПК из отсканированного QR-кода (PairingQrService.PairingQrPayload
+  /// на стороне агента), если пейринг начался со скана — используется как предварительное
+  /// имя, пока не пришёл ответ /pair/init (тот и остаётся источником истины, см. ниже).
+  Future<void> startPairing({
+    required String host,
+    required int port,
+    String? qrDeviceName,
+  }) async {
     state = PairingConnecting();
 
     String? observedFingerprint;
@@ -72,8 +83,12 @@ class PairingController extends StateNotifier<PairingState> {
     final apiClient = ApiClient(host: host, port: port, tlsClient: tlsClient);
 
     try {
-      final data = await apiClient.postUnsigned('/pair/init', {'deviceName': deviceName});
+      // 'deviceName' здесь — имя ЭТОГО телефона, как оно будет видно в списке
+      // сопряжённых устройств на ПК (вкладка "Устройства" в трее); имя самого ПК
+      // приходит отдельно, полем agentName в ответе ниже.
+      final data = await apiClient.postUnsigned('/pair/init', {'deviceName': 'Android Phone'});
       final sessionId = data['pairingSessionId'] as String;
+      final pcName = (data['agentName'] as String?) ?? qrDeviceName ?? host;
 
       if (observedFingerprint == null) {
         // Не должно происходить с самоподписанным сертификатом (badCertificateCallback
@@ -87,7 +102,7 @@ class PairingController extends StateNotifier<PairingState> {
         port: port,
         pairingSessionId: sessionId,
         observedFingerprint: observedFingerprint!,
-        deviceName: deviceName,
+        pcName: pcName,
       );
     } on ApiException catch (e) {
       state = PairingFailed('Не удалось подключиться: ${e.message}');
@@ -125,14 +140,17 @@ class PairingController extends StateNotifier<PairingState> {
         clientId: clientId,
         host: current.host,
         port: current.port,
-        deviceName: current.deviceName,
+        deviceName: current.pcName,
         certFingerprint: current.observedFingerprint,
         deviceMac: deviceMac,
         broadcastHint: broadcastHint,
       );
 
-      await _secureStorage.saveSharedSecret(Uint8List.fromList(base64Decode(sharedSecretB64)));
-      await _profileStore.save(profile);
+      await _secureStorage.saveSharedSecret(clientId, Uint8List.fromList(base64Decode(sharedSecretB64)));
+      // upsert (не save) — сохраняет этот ПК как ещё один профиль, не стирая уже
+      // сопряжённые (docs/roadmap.md, "несколько агентов"), и сразу помечает его
+      // последним использованным.
+      await _profileStore.upsert(profile);
 
       state = PairingSuccess(profile);
     } on ApiException catch (e) {

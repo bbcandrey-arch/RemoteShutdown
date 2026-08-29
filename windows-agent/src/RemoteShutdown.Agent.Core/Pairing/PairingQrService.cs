@@ -14,7 +14,7 @@ namespace RemoteShutdown.Agent.Core.Pairing;
 /// </summary>
 public static class PairingQrService
 {
-    public sealed record PairingQrPayload(string host, int port, string? pin);
+    public sealed record PairingQrPayload(string host, int port, string? pin, string? deviceName);
 
     /// <summary>
     /// Сохраняет PNG с QR-кодом рядом с БД агента и возвращает путь к файлу, либо null,
@@ -29,12 +29,18 @@ public static class PairingQrService
     /// null, если PIN никогда не устанавливали через SettingsForm (например, задан только
     /// хэш вручную), тогда QR несёт только host+port, как раньше.
     /// </param>
-    public static string? GenerateAndSave(int port, string outputDirectory, string? host = null, string? pin = null)
+    /// <param name="deviceName">
+    /// Имя этого ПК (SettingsStore.Keys.DeviceName) — телефон использует его сразу как
+    /// подпись ПК в списке сопряжённых устройств (до подтверждения PIN тоже, если PIN не
+    /// зашит), не дожидаясь ответа /pair/init. Может быть null для старых сборок агента,
+    /// клиент тогда подставит имя из /pair/init или "ПК".
+    /// </param>
+    public static string? GenerateAndSave(int port, string outputDirectory, string? host = null, string? pin = null, string? deviceName = null)
     {
         host ??= NetworkInfoService.GetPrimaryIPv4Address();
         if (host is null) return null;
 
-        var payload = JsonSerializer.Serialize(new PairingQrPayload(host, port, pin));
+        var payload = JsonSerializer.Serialize(new PairingQrPayload(host, port, pin, deviceName));
 
         using var generator = new QRCodeGenerator();
         using var data = generator.CreateQrCode(payload, QRCodeGenerator.ECCLevel.M);

@@ -11,7 +11,7 @@ void main() {
   testWidgets('Экран сопряжения показывает поля для IP и порта', (WidgetTester tester) async {
     await tester.pumpWidget(
       ProviderScope(
-        child: MaterialApp(home: PairingScreen(onPaired: () {})),
+        child: MaterialApp(home: PairingScreen(onPaired: (_) {})),
       ),
     );
 

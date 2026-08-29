@@ -49,8 +49,16 @@ class SnoozeTimerAction extends PendingAction {
 /// Персистентная (shared_preferences) очередь [PendingAction] — переживает перезапуск
 /// приложения, чтобы действие не потерялось, если телефон разрядился/приложение
 /// закрылось до того, как связь с ПК восстановилась.
+///
+/// Одна очередь на clientId — при нескольких сопряжённых ПК (docs/roadmap.md,
+/// "несколько агентов") действия одного ПК не должны уходить другому при следующем
+/// удачном подключении.
 class PendingActionsQueue {
-  static const _prefsKey = 'pending_actions_queue';
+  final String clientId;
+
+  PendingActionsQueue(this.clientId);
+
+  String get _prefsKey => 'pending_actions_queue_$clientId';
 
   Future<List<PendingAction>> load() async {
     final prefs = await SharedPreferences.getInstance();

@@ -59,12 +59,17 @@ class DashboardState {
   }
 }
 
-/// Владеет подписанным ApiClient для текущего сопряжённого ПК и данными Dashboard
-/// (статус/онлайн + активные таймеры, docs/protocol.md §6-§8). Быстрые пресеты
-/// отложенного выключения и список активных таймеров живут прямо на Dashboard —
-/// так решили в плане архитектуры ради эргономики, вместо отдельного экрана
-/// для типового сценария.
+/// Владеет подписанным ApiClient для ОДНОГО сопряжённого ПК (clientId) и данными его
+/// Dashboard (статус/онлайн + активные таймеры, docs/protocol.md §6-§8). Быстрые
+/// пресеты отложенного выключения и список активных таймеров живут прямо на
+/// Dashboard — так решили в плане архитектуры ради эргономики, вместо отдельного
+/// экрана для типового сценария.
+///
+/// Приложение может быть сопряжено с несколькими ПК одновременно (docs/roadmap.md,
+/// "несколько агентов") — на каждый свой DashboardController, см. провайдер ниже
+/// (`.family<String>` по clientId).
 class DashboardController extends StateNotifier<DashboardState> {
+  final String clientId;
   final SecureStorageService _secureStorage;
   final DeviceProfileStore _profileStore;
   final PendingActionsQueue _pendingActions;
@@ -73,20 +78,21 @@ class DashboardController extends StateNotifier<DashboardState> {
   Uint8List? _sharedSecret;
   bool _flushing = false;
 
-  DashboardController({
+  DashboardController(
+    this.clientId, {
     SecureStorageService? secureStorage,
     DeviceProfileStore? profileStore,
     PendingActionsQueue? pendingActions,
   })  : _secureStorage = secureStorage ?? SecureStorageService(),
         _profileStore = profileStore ?? DeviceProfileStore(),
-        _pendingActions = pendingActions ?? PendingActionsQueue(),
+        _pendingActions = pendingActions ?? PendingActionsQueue(clientId),
         super(const DashboardState()) {
     _init();
   }
 
   Future<void> _init() async {
-    final profile = await _profileStore.load();
-    final secret = await _secureStorage.readSharedSecret();
+    final profile = await _profileStore.find(clientId);
+    final secret = await _secureStorage.readSharedSecret(clientId);
     if (profile == null || secret == null) {
       state = state.copyWith(loading: false, errorMessage: 'Нет сопряжённого ПК.');
       return;
@@ -98,9 +104,22 @@ class DashboardController extends StateNotifier<DashboardState> {
       port: profile.port,
       tlsClient: TlsPinningClient(expectedFingerprint: () => profile.certFingerprint),
     );
+    // Этот ПК только что открыт — запоминаем как последний использованный, чтобы
+    // приложение сразу открывало его при следующем запуске (main.dart, _StartupGate).
+    await _profileStore.setLastUsed(clientId);
     final pending = await _pendingActions.load();
     state = state.copyWith(profile: profile, pendingActionsCount: pending.length);
     await refresh();
+  }
+
+  /// Локальное переименование этого ПК (docs/roadmap.md, "настройка переименования ПК") —
+  /// не отправляется на сам ПК, это только то, как телефон его подписывает.
+  Future<void> rename(String newName) async {
+    final trimmed = newName.trim();
+    if (trimmed.isEmpty) return;
+    await _profileStore.rename(clientId, trimmed);
+    final profile = await _profileStore.find(clientId);
+    state = state.copyWith(profile: profile);
   }
 
   Future<void> refresh() async {
@@ -128,15 +147,16 @@ class DashboardController extends StateNotifier<DashboardState> {
     }
   }
 
-  /// Разрывает сопряжение на телефоне: чистит секрет, профиль и offline-очередь,
-  /// закрывает клиент. Вызывается вручную (кнопка "Отвязать ПК" на Dashboard) или
+  /// Разрывает сопряжение с ЭТИМ ПК на телефоне: чистит его секрет, профиль и
+  /// offline-очередь, закрывает клиент — остальные сопряжённые ПК (если есть) не
+  /// затрагиваются. Вызывается вручную (кнопка "Отвязать ПК" на Dashboard) или
   /// автоматически, когда ПК больше не узнаёт это устройство (см. _handleApiException) —
   /// баг, который это чинит: раньше отзыв доступа на ПК (вкладка "Устройства" в трее)
   /// не давал телефону узнать об этом, и приложение зависало на Dashboard без
   /// возможности перепривязаться. См. docs/roadmap.md.
   Future<void> unpair() async {
-    await _secureStorage.clear();
-    await _profileStore.clear();
+    await _secureStorage.deleteSharedSecret(clientId);
+    await _profileStore.remove(clientId);
     await _pendingActions.clear();
     _apiClient?.close();
     _apiClient = null;
@@ -305,6 +325,11 @@ class DashboardController extends StateNotifier<DashboardState> {
   }
 }
 
-final dashboardControllerProvider = StateNotifierProvider.autoDispose<DashboardController, DashboardState>(
-  (ref) => DashboardController(),
+/// `.family<String>` — по clientId, чтобы каждый сопряжённый ПК держал свой независимый
+/// контроллер/состояние (docs/roadmap.md, "несколько агентов"); `.autoDispose` — как и
+/// раньше, чтобы при повторном открытии Dashboard того же ПК не подхватывалось протухшее
+/// состояние прошлой сессии (см. комментарий у unpair()/_handleApiException()).
+final dashboardControllerProvider =
+    StateNotifierProvider.autoDispose.family<DashboardController, DashboardState, String>(
+  (ref, clientId) => DashboardController(clientId),
 );

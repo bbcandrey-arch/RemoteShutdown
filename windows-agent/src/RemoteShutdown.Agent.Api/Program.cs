@@ -25,6 +25,10 @@ if (settingsStore.Get(SettingsStore.Keys.Port) is null)
 // Заглушка опасных действий включена по умолчанию для незнакомой БД — см. docs/security.md.
 if (settingsStore.Get(SettingsStore.Keys.TestMode) is null)
     settingsStore.Set(SettingsStore.Keys.TestMode, "true");
+// Имя ПК по умолчанию — реальное сетевое имя машины; пользователь может переименовать
+// в SettingsForm ("Общие"), см. docs/roadmap.md.
+if (settingsStore.Get(SettingsStore.Keys.DeviceName) is null)
+    settingsStore.Set(SettingsStore.Keys.DeviceName, Environment.MachineName);
 
 builder.WebHost.ConfigureKestrel(options =>
 {
@@ -89,7 +93,8 @@ if (settingsStore.Get(SettingsStore.Keys.PinPlainProtected) is { } protectedPinB
     try { knownPin = System.Text.Encoding.UTF8.GetString(DpapiProtector.UnprotectPin(Convert.FromBase64String(protectedPinBase64))); }
     catch (System.Security.Cryptography.CryptographicException) { /* см. DpapiProtector — не критично для запуска */ }
 }
-var qrPath = PairingQrService.GenerateAndSave(port, qrDirectory, preferredIp, knownPin);
+var deviceName = settingsStore.Get(SettingsStore.Keys.DeviceName) ?? Environment.MachineName;
+var qrPath = PairingQrService.GenerateAndSave(port, qrDirectory, preferredIp, knownPin, deviceName);
 if (qrPath is not null)
     Console.WriteLine($"QR-код для сопряжения сохранён: {qrPath}");
 else

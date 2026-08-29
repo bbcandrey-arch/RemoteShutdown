@@ -32,6 +32,7 @@ public sealed class SettingsForm : Form
     private NumericUpDown _portUpDown = null!;
     private CheckBox _testModeCheckBox = null!;
     private CheckBox _autostartCheckBox = null!;
+    private TextBox _deviceNameTextBox = null!;
 
     /// <param name="hideInsteadOfClose">
     /// true (по умолчанию, обычный запуск из трея) — закрытие окна крестиком его просто
@@ -171,7 +172,8 @@ public sealed class SettingsForm : Form
         // должен отражать актуальный PIN сразу после SetNewPin(), а не только host/port.
         var qrDirectory = Path.GetDirectoryName(_db.DbPath) ?? AppContext.BaseDirectory;
         var qrPath = Path.Combine(qrDirectory, "pairing-qr.png");
-        qrPath = PairingQrService.GenerateAndSave(port, qrDirectory, host, TryGetCurrentPlainPin()) ?? qrPath;
+        var deviceName = _settings.Get(SettingsStore.Keys.DeviceName) ?? Environment.MachineName;
+        qrPath = PairingQrService.GenerateAndSave(port, qrDirectory, host, TryGetCurrentPlainPin(), deviceName) ?? qrPath;
 
         if (File.Exists(qrPath))
         {
@@ -410,6 +412,22 @@ public sealed class SettingsForm : Form
         var page = new TabPage("Общие");
         var layout = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, Padding = new Padding(16), AutoScroll = true };
 
+        var namePanel = new FlowLayoutPanel { AutoSize = true };
+        namePanel.Controls.Add(new Label { Text = "Имя ПК:", AutoSize = true, Margin = new Padding(0, 6, 8, 0) });
+        _deviceNameTextBox = new TextBox { Width = 220 };
+        namePanel.Controls.Add(_deviceNameTextBox);
+        layout.Controls.Add(namePanel);
+        layout.Controls.Add(new Label
+        {
+            AutoSize = true,
+            MaximumSize = new System.Drawing.Size(460, 0),
+            ForeColor = System.Drawing.SystemColors.GrayText,
+            Text = "Под этим именем ПК виден в приложении на телефоне (заголовок экрана, список ПК, " +
+                   "если их сопряжено несколько) и в QR-коде на вкладке «Сопряжение». По умолчанию — " +
+                   "сетевое имя этого компьютера.",
+            Margin = new Padding(0, 0, 0, 16),
+        });
+
         var portPanel = new FlowLayoutPanel { AutoSize = true };
         portPanel.Controls.Add(new Label { Text = "Порт агента:", AutoSize = true, Margin = new Padding(0, 6, 8, 0) });
         _portUpDown = new NumericUpDown { Minimum = 1024, Maximum = 65535, Width = 90 };
@@ -454,6 +472,7 @@ public sealed class SettingsForm : Form
 
     private void RefreshGeneralTab()
     {
+        _deviceNameTextBox.Text = _settings.Get(SettingsStore.Keys.DeviceName) ?? Environment.MachineName;
         _portUpDown.Value = int.TryParse(_settings.Get(SettingsStore.Keys.Port), out var p) ? p : 54321;
         _testModeCheckBox.Checked = _settings.Get(SettingsStore.Keys.TestMode) != "false";
         _autostartCheckBox.Checked = AutostartService.IsEnabled();
@@ -461,9 +480,14 @@ public sealed class SettingsForm : Form
 
     private void SaveGeneralTab()
     {
+        var deviceName = _deviceNameTextBox.Text.Trim();
+        _settings.Set(SettingsStore.Keys.DeviceName, deviceName.Length > 0 ? deviceName : Environment.MachineName);
         _settings.Set(SettingsStore.Keys.Port, ((int)_portUpDown.Value).ToString());
         _settings.Set(SettingsStore.Keys.TestMode, _testModeCheckBox.Checked ? "true" : "false");
         AutostartService.SetEnabled(_autostartCheckBox.Checked);
+
+        RefreshGeneralTab();
+        RefreshPairingTab(); // имя ПК зашито в QR — перегенерировать, чтобы новый QR был актуален сразу
 
         MessageBox.Show(this, "Сохранено.", "Remote Shutdown Agent", MessageBoxButtons.OK, MessageBoxIcon.Information);
     }

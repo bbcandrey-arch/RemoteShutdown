@@ -8,7 +8,11 @@ import 'qr_scan_screen.dart';
 /// mDNS/UDP discovery появятся позже (Этап 3 в плане архитектуры) — этот экран в любом
 /// случае останется как запасной путь, поэтому он нужен независимо от них.
 class PairingScreen extends ConsumerStatefulWidget {
-  final VoidCallback onPaired;
+  /// Вызывается с clientId только что сопряжённого ПК — используется и при первом
+  /// запуске (main.dart, _StartupGate), и при добавлении ещё одного ПК к уже
+  /// сопряжённым (см. PcListScreen) — тогда вызывающая сторона решает, что делать:
+  /// открыть Dashboard нового ПК или просто вернуться в список.
+  final ValueChanged<String> onPaired;
 
   const PairingScreen({super.key, required this.onPaired});
 
@@ -26,6 +30,10 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
   /// в поле, а сразу подтвердить пейринг одним сканом, без ручного ввода.
   String? _scannedPin;
 
+  /// Имя ПК из QR-кода (PairingQrService.PairingQrPayload.deviceName), если оно там было —
+  /// передаётся в startPairing как предварительное имя (см. PairingController).
+  String? _scannedDeviceName;
+
   @override
   void dispose() {
     _hostController.dispose();
@@ -39,7 +47,7 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
     final state = ref.watch(pairingControllerProvider);
 
     ref.listen<PairingState>(pairingControllerProvider, (previous, next) {
-      if (next is PairingSuccess) widget.onPaired();
+      if (next is PairingSuccess) widget.onPaired(next.profile.clientId);
 
       // Если PIN пришёл из QR — подтверждаем автоматически, как только контроллер дошёл
       // до экрана ввода PIN, вместо того чтобы заставлять пользователя нажимать ещё раз.
@@ -83,7 +91,7 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
     ref.read(pairingControllerProvider.notifier).startPairing(
           host: host,
           port: port,
-          deviceName: 'Android Phone',
+          qrDeviceName: _scannedDeviceName,
         );
   }
 
@@ -97,12 +105,13 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
   /// запоминаем его и сразу запускаем пейринг (см. ref.listen выше) — сканирование
   /// одного кадра заменяет весь ручной ввод (см. docs/roadmap.md).
   Future<void> _scanQr() async {
-    final result = await Navigator.of(context).push<({String host, int port, String? pin})>(
+    final result = await Navigator.of(context).push<({String host, int port, String? pin, String? deviceName})>(
       MaterialPageRoute(builder: (_) => const QrScanScreen()),
     );
     if (result == null) return;
     _hostController.text = result.host;
     _portController.text = result.port.toString();
+    _scannedDeviceName = result.deviceName;
 
     if (result.pin != null) {
       _scannedPin = result.pin;

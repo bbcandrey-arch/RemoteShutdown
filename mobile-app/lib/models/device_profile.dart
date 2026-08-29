@@ -24,12 +24,12 @@ class DeviceProfile {
     this.broadcastHint,
   });
 
-  DeviceProfile copyWith({String? host, int? port, String? deviceMac, String? broadcastHint}) {
+  DeviceProfile copyWith({String? host, int? port, String? deviceMac, String? broadcastHint, String? deviceName}) {
     return DeviceProfile(
       clientId: clientId,
       host: host ?? this.host,
       port: port ?? this.port,
-      deviceName: deviceName,
+      deviceName: deviceName ?? this.deviceName,
       certFingerprint: certFingerprint,
       deviceMac: deviceMac ?? this.deviceMac,
       broadcastHint: broadcastHint ?? this.broadcastHint,

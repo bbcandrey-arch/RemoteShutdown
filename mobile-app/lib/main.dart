@@ -33,7 +33,11 @@ class _StartupGate extends StatefulWidget {
 
 class _StartupGateState extends State<_StartupGate> {
   bool _loading = true;
-  bool _hasProfile = false;
+
+  /// clientId ПК, который нужно открыть сразу при запуске — последний использованный
+  /// (docs/roadmap.md: "открываться должен всегда последний использовавшийся, чтобы не
+  /// тратить время на выбор"), либо null, если сопряжённых ПК ещё нет вовсе.
+  String? _clientId;
 
   @override
   void initState() {
@@ -42,10 +46,10 @@ class _StartupGateState extends State<_StartupGate> {
   }
 
   Future<void> _checkExistingProfile() async {
-    final profile = await DeviceProfileStore().load();
+    final lastUsed = await DeviceProfileStore().loadLastUsed();
     if (!mounted) return;
     setState(() {
-      _hasProfile = profile != null;
+      _clientId = lastUsed?.clientId;
       _loading = false;
     });
   }
@@ -56,10 +60,14 @@ class _StartupGateState extends State<_StartupGate> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    if (_hasProfile) {
-      return DashboardScreen(onUnpaired: () => setState(() => _hasProfile = false));
+    if (_clientId != null) {
+      // При отвязке (вручную или автоматически, см. DashboardController.unpair())
+      // DeviceProfileStore уже успел передвинуть "последний использованный" на другой
+      // оставшийся ПК, если он есть, — просто перечитываем состояние, а не считаем, что
+      // сопряжённых ПК теперь нет вовсе.
+      return DashboardScreen(clientId: _clientId!, onUnpaired: _checkExistingProfile);
     }
 
-    return PairingScreen(onPaired: () => setState(() => _hasProfile = true));
+    return PairingScreen(onPaired: (clientId) => setState(() => _clientId = clientId));
   }
 }

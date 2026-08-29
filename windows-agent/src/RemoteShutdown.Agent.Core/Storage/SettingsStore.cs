@@ -56,5 +56,14 @@ public sealed class SettingsStore
         /// найденный, что не всегда тот, что нужен. См. docs/roadmap.md.
         /// </summary>
         public const string PreferredIp = "preferred_ip";
+
+        /// <summary>
+        /// Имя этого ПК, как оно показывается в приложении на телефоне (заголовок Dashboard,
+        /// список сопряжённых ПК при поддержке нескольких агентов). По умолчанию —
+        /// Environment.MachineName, редактируется в SettingsForm ("Общие"), зашивается в
+        /// QR-код (PairingQrService) и возвращается в ответе /pair/init — так название видно
+        /// и при сканировании QR, и при ручном pairing по IP. См. docs/roadmap.md.
+        /// </summary>
+        public const string DeviceName = "device_name";
     }
 }

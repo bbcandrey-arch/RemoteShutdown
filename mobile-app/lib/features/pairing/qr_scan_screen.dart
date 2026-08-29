@@ -29,9 +29,10 @@ class _QrScanScreenState extends State<QrScanScreen> {
       final port = json['port'] as int?;
       if (host == null || port == null) return;
       final pin = json['pin'] as String?;
+      final deviceName = json['deviceName'] as String?;
 
       _handled = true;
-      Navigator.of(context).pop((host: host, port: port, pin: pin));
+      Navigator.of(context).pop((host: host, port: port, pin: pin, deviceName: deviceName));
     } catch (_) {
       // Не наш QR-код (не JSON с host/port) — просто игнорируем и продолжаем сканировать.
     }

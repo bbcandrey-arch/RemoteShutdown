@@ -1,5 +1,6 @@
 using RemoteShutdown.Agent.Core.Network;
 using RemoteShutdown.Agent.Core.Security;
+using RemoteShutdown.Agent.Core.Storage;
 
 namespace RemoteShutdown.Agent.Api.Endpoints;
 
@@ -10,11 +11,17 @@ public static class PairEndpoints
 
     public static void MapPairEndpoints(this WebApplication app)
     {
-        app.MapPost("/pair/init", (PairInitRequest request, HttpContext ctx, PairingService pairing) =>
+        app.MapPost("/pair/init", (PairInitRequest request, HttpContext ctx, PairingService pairing, SettingsStore settings) =>
         {
             var requestId = ctx.GetRequestId();
             var session = pairing.InitPairing(request.DeviceName);
-            return Results.Ok(ApiResponse.Ok(requestId, new { pairingSessionId = session.PairingSessionId }));
+            // agentName — имя самого ПК (не путать с request.DeviceName, это имя телефона,
+            // которое агент показывает в списке сопряжённых устройств). Телефон использует
+            // agentName как подпись этого ПК — см. docs/roadmap.md, "переименование ПК" и
+            // "несколько агентов". Возвращается независимо от того, пришёл ли пейринг через
+            // QR (там имя тоже может быть, но /pair/init — источник истины) или вручную по IP.
+            var agentName = settings.Get(SettingsStore.Keys.DeviceName) ?? Environment.MachineName;
+            return Results.Ok(ApiResponse.Ok(requestId, new { pairingSessionId = session.PairingSessionId, agentName }));
         });
 
         app.MapPost("/pair/confirm", (PairConfirmRequest request, HttpContext ctx, PairingService pairing) =>

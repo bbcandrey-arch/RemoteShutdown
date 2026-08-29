@@ -2,23 +2,30 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/timer_task.dart';
+import '../pc_list/pc_list_screen.dart';
 import 'dashboard_controller.dart';
 
 /// Главный экран: статус ПК, быстрые команды, пресеты отложенного выключения и список
 /// активных таймеров — всё на одном экране, без лишних переходов (эргономика из плана).
+///
+/// Один экземпляр отвечает за один сопряжённый ПК ([clientId]) — при нескольких
+/// сопряжённых ПК (docs/roadmap.md, "несколько агентов") переключение между ними идёт
+/// через [PcListScreen] (иконка в AppBar).
 class DashboardScreen extends ConsumerWidget {
+  final String clientId;
   final VoidCallback onUnpaired;
 
-  const DashboardScreen({super.key, required this.onUnpaired});
+  const DashboardScreen({super.key, required this.clientId, required this.onUnpaired});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(dashboardControllerProvider);
-    final controller = ref.read(dashboardControllerProvider.notifier);
+    final provider = dashboardControllerProvider(clientId);
+    final state = ref.watch(provider);
+    final controller = ref.read(provider.notifier);
 
     // Сопряжение разорвано (вручную или ПК отозвал доступ этому устройству, см.
     // DashboardController.unpair()/_handleApiException) — уходим на экран сопряжения.
-    ref.listen<DashboardState>(dashboardControllerProvider, (previous, next) {
+    ref.listen<DashboardState>(provider, (previous, next) {
       if (next.unpaired) onUnpaired();
     });
 
@@ -26,6 +33,16 @@ class DashboardScreen extends ConsumerWidget {
       appBar: AppBar(
         title: Text(state.profile?.deviceName ?? 'Компьютер'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.edit),
+            tooltip: 'Переименовать ПК',
+            onPressed: state.profile == null ? null : () => _renamePc(context, controller, state.profile!.deviceName),
+          ),
+          IconButton(
+            icon: const Icon(Icons.devices),
+            tooltip: 'Мои ПК',
+            onPressed: () => _openPcList(context),
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: controller.refresh,
@@ -57,6 +74,40 @@ class DashboardScreen extends ConsumerWidget {
             _ActiveTimersList(timers: state.timers, controller: controller),
           ],
         ),
+      ),
+    );
+  }
+
+  /// Открывает список сопряжённых ПК — переключиться на другой или добавить новый
+  /// (docs/roadmap.md, "несколько агентов"). Отдельный экран, а не диалог, — список
+  /// может расти произвольно, плюс там же живёт отзыв/переименование.
+  void _openPcList(BuildContext context) {
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PcListScreen()));
+  }
+
+  /// Локальное переименование ПК (docs/roadmap.md, "настройка переименования ПК") —
+  /// как телефон подписывает этот ПК у себя, самого ПК не касается.
+  void _renamePc(BuildContext context, DashboardController controller, String currentName) {
+    final nameController = TextEditingController(text: currentName);
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Переименовать ПК'),
+        content: TextField(
+          controller: nameController,
+          autofocus: true,
+          decoration: const InputDecoration(labelText: 'Имя ПК'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Отмена')),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              controller.rename(nameController.text);
+            },
+            child: const Text('Сохранить'),
+          ),
+        ],
       ),
     );
   }
