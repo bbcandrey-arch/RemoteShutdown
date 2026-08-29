@@ -15,12 +15,18 @@ public sealed class AgentProcessManager : IDisposable
     public bool IsRunning => _process is { HasExited: false };
 
     /// <summary>
-    /// Ищет RemoteShutdown.Agent.Api.exe рядом с этим репозиторием: поднимается от
-    /// каталога трея до RemoteShutdown.Agent.sln, затем смотрит в src/.../bin/{Release,Debug}.
-    /// Возвращает null, если не нашёл (например, агент собран/запущен отдельно).
+    /// Ищет RemoteShutdown.Agent.Api.exe двумя способами:
+    /// 1) рядом с самим Tray.exe (сценарий дистрибутива — см. /distrib, оба exe лежат
+    ///    в одной папке после `dotnet publish`);
+    /// 2) если не нашли — поднимается от каталога трея до RemoteShutdown.Agent.sln и
+    ///    смотрит в src/.../bin/{Release,Debug} (сценарий разработки из исходников).
+    /// Возвращает null, если не нашёл ни там, ни там.
     /// </summary>
     public static string? FindAgentApiExecutable()
     {
+        var besideTray = Path.Combine(AppContext.BaseDirectory, "RemoteShutdown.Agent.Api.exe");
+        if (File.Exists(besideTray)) return besideTray;
+
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
         while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "RemoteShutdown.Agent.sln")))
             dir = dir.Parent;
