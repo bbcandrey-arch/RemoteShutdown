@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'pairing_controller.dart';
+import 'qr_scan_screen.dart';
 
 /// MVP-экран сопряжения: ручной ввод IP + PIN (docs/protocol.md §4). QR-сопряжение и
 /// mDNS/UDP discovery появятся позже (Этап 3 в плане архитектуры) — этот экран в любом
@@ -46,6 +47,7 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
               portController: _portController,
               errorMessage: state is PairingFailed ? state.message : null,
               onSubmit: _submitConnect,
+              onScanQr: _scanQr,
             ),
           PairingConnecting() => const _CenteredProgress(label: 'Подключение…'),
           PairingAwaitingPin() => _PinForm(
@@ -76,6 +78,17 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
     if (pin.isEmpty) return;
     ref.read(pairingControllerProvider.notifier).confirmPin(pin);
   }
+
+  /// Открывает сканер QR-кода и подставляет распознанные host+port в поля формы —
+  /// PIN пользователь всё равно вводит сам на следующем шаге (см. docs/roadmap.md).
+  Future<void> _scanQr() async {
+    final result = await Navigator.of(context).push<({String host, int port})>(
+      MaterialPageRoute(builder: (_) => const QrScanScreen()),
+    );
+    if (result == null) return;
+    _hostController.text = result.host;
+    _portController.text = result.port.toString();
+  }
 }
 
 class _ConnectForm extends StatelessWidget {
@@ -83,12 +96,14 @@ class _ConnectForm extends StatelessWidget {
   final TextEditingController portController;
   final String? errorMessage;
   final VoidCallback onSubmit;
+  final VoidCallback onScanQr;
 
   const _ConnectForm({
     required this.hostController,
     required this.portController,
     required this.errorMessage,
     required this.onSubmit,
+    required this.onScanQr,
   });
 
   @override
@@ -96,7 +111,13 @@ class _ConnectForm extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Text('Введите IP-адрес и порт компьютера в вашей Wi-Fi сети.'),
+        const Text('Отсканируйте QR-код на экране компьютера или введите IP и порт вручную.'),
+        const SizedBox(height: 16),
+        OutlinedButton.icon(
+          onPressed: onScanQr,
+          icon: const Icon(Icons.qr_code_scanner),
+          label: const Text('Сканировать QR-код'),
+        ),
         const SizedBox(height: 16),
         TextField(
           controller: hostController,

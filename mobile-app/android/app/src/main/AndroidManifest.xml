@@ -1,4 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Нужно для сканирования QR-кода сопряжения (mobile_scanner), см. docs/roadmap.md -->
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <uses-feature android:name="android.hardware.camera" android:required="false"/>
     <application
         android:label="mobile_app"
         android:name="${applicationName}"

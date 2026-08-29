@@ -72,4 +72,13 @@ app.Map("/events", async (HttpContext context, WebSocketEventHub hub) =>
 // docs/protocol.md §7 and the "Хранение состояния таймеров" section of the plan.
 app.Services.GetRequiredService<TimerSchedulerService>().RestoreFromStorage();
 
+// QR-код для экрана сопряжения (docs/roadmap.md, "QR-код пейринг") — сохраняем рядом
+// с БД агента, чтобы пользователь мог открыть картинку и показать её камере телефона.
+var qrDirectory = Path.GetDirectoryName(db.DbPath) ?? AppContext.BaseDirectory;
+var qrPath = PairingQrService.GenerateAndSave(port, qrDirectory);
+if (qrPath is not null)
+    Console.WriteLine($"QR-код для сопряжения сохранён: {qrPath}");
+else
+    Console.WriteLine("Не удалось определить локальный IP-адрес для QR-кода сопряжения — используйте ручной ввод IP.");
+
 app.Run();
