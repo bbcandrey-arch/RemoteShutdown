@@ -30,6 +30,10 @@ class DashboardScreen extends ConsumerWidget {
           padding: const EdgeInsets.all(16),
           children: [
             _StatusCard(online: state.online, loading: state.loading, errorMessage: state.errorMessage),
+            if (state.pendingActionsCount > 0) ...[
+              const SizedBox(height: 8),
+              _PendingActionsBanner(count: state.pendingActionsCount),
+            ],
             const SizedBox(height: 16),
             _QuickCommands(controller: controller),
             const SizedBox(height: 16),
@@ -69,6 +73,33 @@ class _StatusCard extends StatelessWidget {
               const SizedBox(width: 12),
               const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
             ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Показывает, что часть действий ещё не доставлена на ПК (связь временно терялась) —
+/// см. docs/roadmap.md, "Устойчивость к потере соединения". Отправятся автоматически
+/// при следующем удачном подключении, отдельно нажимать ничего не нужно.
+class _PendingActionsBanner extends StatelessWidget {
+  final int count;
+  const _PendingActionsBanner({required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      color: Theme.of(context).colorScheme.secondaryContainer,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            const Icon(Icons.cloud_off, size: 18),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text('Ожидает отправки на ПК: $count', style: Theme.of(context).textTheme.bodyMedium),
+            ),
           ],
         ),
       ),
