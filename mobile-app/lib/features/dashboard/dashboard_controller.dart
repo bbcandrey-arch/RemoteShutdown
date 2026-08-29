@@ -20,6 +20,11 @@ class DashboardState {
   final String? lastActionMessage;
   final int pendingActionsCount;
 
+  /// true после того, как сопряжение разорвано (вручную или потому что ПК отозвал
+  /// доступ этому устройству, код ответа UNKNOWN_CLIENT) — экран должен вернуться на
+  /// PairingScreen. См. DashboardController.unpair().
+  final bool unpaired;
+
   const DashboardState({
     this.loading = true,
     this.online = false,
@@ -28,6 +33,7 @@ class DashboardState {
     this.timers = const [],
     this.lastActionMessage,
     this.pendingActionsCount = 0,
+    this.unpaired = false,
   });
 
   DashboardState copyWith({
@@ -38,6 +44,7 @@ class DashboardState {
     List<TimerTask>? timers,
     String? lastActionMessage,
     int? pendingActionsCount,
+    bool? unpaired,
   }) {
     return DashboardState(
       loading: loading ?? this.loading,
@@ -47,6 +54,7 @@ class DashboardState {
       timers: timers ?? this.timers,
       lastActionMessage: lastActionMessage,
       pendingActionsCount: pendingActionsCount ?? this.pendingActionsCount,
+      unpaired: unpaired ?? this.unpaired,
     );
   }
 }
@@ -113,10 +121,39 @@ class DashboardController extends StateNotifier<DashboardState> {
       // (docs/roadmap.md, "Устойчивость к потере соединения").
       await _flushPendingActions();
     } on ApiException catch (e) {
-      state = state.copyWith(loading: false, online: false, errorMessage: e.message);
+      state = state.copyWith(loading: false, online: false);
+      await _handleApiException(e);
     } catch (e) {
       state = state.copyWith(loading: false, online: false, errorMessage: 'ПК недоступен: $e');
     }
+  }
+
+  /// Разрывает сопряжение на телефоне: чистит секрет, профиль и offline-очередь,
+  /// закрывает клиент. Вызывается вручную (кнопка "Отвязать ПК" на Dashboard) или
+  /// автоматически, когда ПК больше не узнаёт это устройство (см. _handleApiException) —
+  /// баг, который это чинит: раньше отзыв доступа на ПК (вкладка "Устройства" в трее)
+  /// не давал телефону узнать об этом, и приложение зависало на Dashboard без
+  /// возможности перепривязаться. См. docs/roadmap.md.
+  Future<void> unpair() async {
+    await _secureStorage.clear();
+    await _profileStore.clear();
+    await _pendingActions.clear();
+    _apiClient?.close();
+    _apiClient = null;
+    _sharedSecret = null;
+    state = state.copyWith(unpaired: true);
+  }
+
+  /// Единая точка обработки ошибок сервера: UNKNOWN_CLIENT значит "этот телефон больше
+  /// не сопряжён с ПК" (отозван вручную, либо агент переустановлен/сбросил БД) — в этом
+  /// случае сразу разрываем локальное сопряжение, а не просто показываем ошибку, на
+  /// которую пользователь не может ничего поделать с этого экрана.
+  Future<void> _handleApiException(ApiException e) async {
+    if (e.code == 'UNKNOWN_CLIENT') {
+      await unpair();
+      return;
+    }
+    state = state.copyWith(errorMessage: e.message);
   }
 
   /// Проигрывает накопленную очередь отложенных действий по порядку, пока сеть
@@ -196,7 +233,7 @@ class DashboardController extends StateNotifier<DashboardState> {
       state = state.copyWith(lastActionMessage: 'Выключение через $minutes мин запланировано');
       await refresh();
     } on ApiException catch (e) {
-      state = state.copyWith(errorMessage: e.message);
+      await _handleApiException(e);
     } catch (_) {
       await _enqueue(ScheduleShutdownAction(minutes),
           'Нет связи с ПК — выключение через $minutes мин отправится, когда связь восстановится');
@@ -233,7 +270,7 @@ class DashboardController extends StateNotifier<DashboardState> {
       );
       await refresh();
     } on ApiException catch (e) {
-      state = state.copyWith(errorMessage: e.message);
+      await _handleApiException(e);
     } catch (_) {
       await _enqueue(fallback, offlineMessage);
     }
@@ -257,7 +294,7 @@ class DashboardController extends StateNotifier<DashboardState> {
       state = state.copyWith(lastActionMessage: successMessage);
       if (refreshAfter) await refresh();
     } on ApiException catch (e) {
-      state = state.copyWith(errorMessage: e.message);
+      await _handleApiException(e);
     }
   }
 
@@ -268,6 +305,6 @@ class DashboardController extends StateNotifier<DashboardState> {
   }
 }
 
-final dashboardControllerProvider = StateNotifierProvider<DashboardController, DashboardState>(
+final dashboardControllerProvider = StateNotifierProvider.autoDispose<DashboardController, DashboardState>(
   (ref) => DashboardController(),
 );

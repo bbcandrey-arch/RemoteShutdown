@@ -57,7 +57,7 @@ class _StartupGateState extends State<_StartupGate> {
     }
 
     if (_hasProfile) {
-      return const DashboardScreen();
+      return DashboardScreen(onUnpaired: () => setState(() => _hasProfile = false));
     }
 
     return PairingScreen(onPaired: () => setState(() => _hasProfile = true));

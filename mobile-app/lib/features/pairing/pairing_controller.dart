@@ -161,6 +161,6 @@ class PairingController extends StateNotifier<PairingState> {
   void reset() => state = PairingIdle();
 }
 
-final pairingControllerProvider = StateNotifierProvider<PairingController, PairingState>(
+final pairingControllerProvider = StateNotifierProvider.autoDispose<PairingController, PairingState>(
   (ref) => PairingController(),
 );

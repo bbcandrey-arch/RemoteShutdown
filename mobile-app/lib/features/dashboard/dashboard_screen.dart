@@ -7,12 +7,20 @@ import 'dashboard_controller.dart';
 /// Главный экран: статус ПК, быстрые команды, пресеты отложенного выключения и список
 /// активных таймеров — всё на одном экране, без лишних переходов (эргономика из плана).
 class DashboardScreen extends ConsumerWidget {
-  const DashboardScreen({super.key});
+  final VoidCallback onUnpaired;
+
+  const DashboardScreen({super.key, required this.onUnpaired});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(dashboardControllerProvider);
     final controller = ref.read(dashboardControllerProvider.notifier);
+
+    // Сопряжение разорвано (вручную или ПК отозвал доступ этому устройству, см.
+    // DashboardController.unpair()/_handleApiException) — уходим на экран сопряжения.
+    ref.listen<DashboardState>(dashboardControllerProvider, (previous, next) {
+      if (next.unpaired) onUnpaired();
+    });
 
     return Scaffold(
       appBar: AppBar(
@@ -21,6 +29,11 @@ class DashboardScreen extends ConsumerWidget {
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: controller.refresh,
+          ),
+          IconButton(
+            icon: const Icon(Icons.link_off),
+            tooltip: 'Отвязать ПК',
+            onPressed: () => _confirmUnpair(context, controller),
           ),
         ],
       ),
@@ -44,6 +57,34 @@ class DashboardScreen extends ConsumerWidget {
             _ActiveTimersList(timers: state.timers, controller: controller),
           ],
         ),
+      ),
+    );
+  }
+
+  /// Ручной разрыв сопряжения — тот же путь, что срабатывает автоматически при
+  /// UNKNOWN_CLIENT (см. DashboardController), но по явному действию пользователя:
+  /// например, если он хочет перепривязать телефон к другому ПК или к тому же ПК
+  /// заново после смены PIN.
+  void _confirmUnpair(BuildContext context, DashboardController controller) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Отвязать ПК?'),
+        content: const Text(
+          'Приложение забудет этот ПК — придётся сопрягаться заново (QR-код или PIN). '
+          'Само сопряжение на стороне ПК тоже нужно отозвать отдельно, если вы хотите '
+          'полностью прекратить ему доступ.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Отмена')),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              controller.unpair();
+            },
+            child: const Text('Отвязать'),
+          ),
+        ],
       ),
     );
   }
