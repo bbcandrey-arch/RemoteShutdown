@@ -4,9 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 /// Экран сканирования QR-кода сопряжения (docs/roadmap.md, "QR-код пейринг").
-/// Windows-агент кодирует в QR только host+port (см. windows-agent/.../PairingQrService.cs) —
-/// PIN пользователь всё равно вводит вручную на следующем шаге, поэтому сканирование чужого
-/// QR-кода само по себе не даёт доступа к чужому ПК.
+/// Windows-агент кодирует в QR host+port и, если PIN уже задан через окно настроек трея,
+/// сам PIN (см. windows-agent/.../PairingQrService.cs) — тогда одного скана достаточно для
+/// полного сопряжения. Если PIN в QR нет (агент его не знает в открытом виде), пользователь
+/// вводит его вручную на следующем экране, как раньше.
 class QrScanScreen extends StatefulWidget {
   const QrScanScreen({super.key});
 
@@ -27,9 +28,10 @@ class _QrScanScreenState extends State<QrScanScreen> {
       final host = json['host'] as String?;
       final port = json['port'] as int?;
       if (host == null || port == null) return;
+      final pin = json['pin'] as String?;
 
       _handled = true;
-      Navigator.of(context).pop((host: host, port: port));
+      Navigator.of(context).pop((host: host, port: port, pin: pin));
     } catch (_) {
       // Не наш QR-код (не JSON с host/port) — просто игнорируем и продолжаем сканировать.
     }

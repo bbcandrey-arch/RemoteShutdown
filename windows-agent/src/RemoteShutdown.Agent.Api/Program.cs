@@ -80,7 +80,15 @@ app.Services.GetRequiredService<TimerSchedulerService>().RestoreFromStorage();
 // с БД агента, чтобы пользователь мог открыть картинку и показать её камере телефона.
 var qrDirectory = Path.GetDirectoryName(db.DbPath) ?? AppContext.BaseDirectory;
 var preferredIp = settingsStore.Get(SettingsStore.Keys.PreferredIp);
-var qrPath = PairingQrService.GenerateAndSave(port, qrDirectory, preferredIp);
+// PIN зашивается в QR, только если известен в открытом виде (задавался через SettingsForm
+// в трее) — см. RemoteShutdown.Agent.Tray/SettingsForm.cs и docs/security.md.
+string? knownPin = null;
+if (settingsStore.Get(SettingsStore.Keys.PinPlainProtected) is { } protectedPinBase64)
+{
+    try { knownPin = System.Text.Encoding.UTF8.GetString(DpapiProtector.UnprotectPin(Convert.FromBase64String(protectedPinBase64))); }
+    catch (System.Security.Cryptography.CryptographicException) { /* см. DpapiProtector — не критично для запуска */ }
+}
+var qrPath = PairingQrService.GenerateAndSave(port, qrDirectory, preferredIp, knownPin);
 if (qrPath is not null)
     Console.WriteLine($"QR-код для сопряжения сохранён: {qrPath}");
 else

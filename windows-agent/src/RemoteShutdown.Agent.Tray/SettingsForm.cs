@@ -42,8 +42,9 @@ public sealed class SettingsForm : Form
         _pairedDevices = new PairedDeviceStore(db);
 
         Text = "Remote Shutdown Agent — настройки";
-        Width = 520;
-        Height = 560;
+        Width = 560;
+        Height = 720;
+        MinimumSize = new System.Drawing.Size(520, 500);
         StartPosition = FormStartPosition.CenterScreen;
         if (hideInsteadOfClose)
             FormClosing += (_, e) => { e.Cancel = true; Hide(); }; // трей живёт дольше окна — просто прячем его
@@ -62,8 +63,11 @@ public sealed class SettingsForm : Form
     // ---- Вкладка "Сопряжение": QR-код + IP/порт, установка PIN ----
     private TabPage BuildPairingTab()
     {
-        var page = new TabPage("Сопряжение");
-        var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, Padding = new Padding(16) };
+        // AutoScroll на самой вкладке + AutoSize (не Dock=Fill) на layout: если контент не
+        // влезает по высоте, появляется скроллбар вместо того, чтобы нижние кнопки/текст
+        // просто обрезались, пока пользователь вручную не растянет окно.
+        var page = new TabPage("Сопряжение") { AutoScroll = true };
+        var layout = new TableLayoutPanel { ColumnCount = 1, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(16) };
 
         _qrPictureBox = new PictureBox { Width = 220, Height = 220, SizeMode = PictureBoxSizeMode.Zoom, BorderStyle = BorderStyle.FixedSingle };
         layout.Controls.Add(_qrPictureBox);
@@ -88,7 +92,7 @@ public sealed class SettingsForm : Form
         layout.Controls.Add(_connectionInfoLabel);
 
         var refreshQrButton = new Button { Text = "Обновить QR-код", AutoSize = true };
-        refreshQrButton.Click += (_, _) => RefreshPairingTab(regenerateQr: true);
+        refreshQrButton.Click += (_, _) => RefreshPairingTab();
         layout.Controls.Add(refreshQrButton);
 
         var pinGroup = new GroupBox { Text = "PIN для сопряжения", AutoSize = true, Width = 460, Margin = new Padding(0, 20, 0, 0) };
@@ -121,9 +125,11 @@ public sealed class SettingsForm : Form
             MaximumSize = new System.Drawing.Size(460, 0),
             ForeColor = System.Drawing.SystemColors.GrayText,
             Margin = new Padding(0, 8, 0, 0),
-            Text = "PIN хранится только в виде хэша — после установки его нигде нельзя посмотреть " +
-                   "повторно, поэтому запишите его сразу. Он нужен один раз, при первом сопряжении " +
-                   "телефона.",
+            Text = "PIN нужен один раз, при первом сопряжении телефона. Посмотреть его снова можно " +
+                   "кнопкой «Показать» выше — но только если он был установлен через это окно. " +
+                   "Если PIN задавали раньше вручную (например, правкой БД), это окно про него не " +
+                   "знает — он всё ещё действует, просто здесь не отображается; установите новый, " +
+                   "если забыли старый.",
         };
         layout.Controls.Add(note);
 
@@ -133,7 +139,7 @@ public sealed class SettingsForm : Form
 
     private bool _populatingInterfaces;
 
-    private void RefreshPairingTab(bool regenerateQr = false)
+    private void RefreshPairingTab()
     {
         var port = int.TryParse(_settings.Get(SettingsStore.Keys.Port), out var p) ? p : 54321;
         var interfaces = NetworkInfoService.GetAllIPv4Addresses();
@@ -155,22 +161,36 @@ public sealed class SettingsForm : Form
 
         var host = (_interfaceComboBox.SelectedItem as InterfaceItem)?.Address ?? NetworkInfoService.GetPrimaryIPv4Address();
 
+        // QR всегда перегенерируется (не только по кнопке или при отсутствии файла) — он
+        // должен отражать актуальный PIN сразу после SetNewPin(), а не только host/port.
         var qrDirectory = Path.GetDirectoryName(_db.DbPath) ?? AppContext.BaseDirectory;
         var qrPath = Path.Combine(qrDirectory, "pairing-qr.png");
-        if (regenerateQr || !File.Exists(qrPath))
-            qrPath = PairingQrService.GenerateAndSave(port, qrDirectory, host) ?? qrPath;
+        qrPath = PairingQrService.GenerateAndSave(port, qrDirectory, host, TryGetCurrentPlainPin()) ?? qrPath;
 
         if (File.Exists(qrPath))
         {
-            using var stream = new FileStream(qrPath, FileMode.Open, FileAccess.Read);
-            _qrPictureBox.Image = System.Drawing.Image.FromStream(stream);
+            // Читаем файл в память и грузим Bitmap из MemoryStream (а не через Image.FromStream
+            // поверх FileStream) — иначе GDI+ держит файл открытым до Dispose картинки, и
+            // повторная генерация QR (File.WriteAllBytes в PairingQrService) падает с
+            // IOException «файл занят другим процессом». Это и было причиной нерабочей
+            // кнопки «Обновить QR-код».
+            var bytes = File.ReadAllBytes(qrPath);
+            using var memoryStream = new MemoryStream(bytes);
+            var newImage = System.Drawing.Image.FromStream(memoryStream);
+            var oldImage = _qrPictureBox.Image;
+            _qrPictureBox.Image = newImage;
+            oldImage?.Dispose();
         }
 
+        var pinKnown = TryGetCurrentPlainPin() is not null;
         _connectionInfoLabel.Text =
             $"IP-адрес: {host ?? "не определён"}\n" +
             $"Порт: {port}\n\n" +
-            "Отсканируйте QR-код в приложении на телефоне или введите IP и порт вручную, " +
-            "затем PIN, заданный ниже.";
+            (pinKnown
+                ? "QR-код уже содержит IP, порт и PIN — отсканируйте его в приложении, вводить " +
+                  "ничего не придётся."
+                : "PIN не зашит в QR (задайте его ниже) — отсканируйте IP и порт, затем введите PIN " +
+                  "вручную, либо введите всё вручную.");
 
         RefreshCurrentPinLabel();
     }
@@ -182,7 +202,7 @@ public sealed class SettingsForm : Form
         if (_interfaceComboBox.SelectedItem is not InterfaceItem item) return;
 
         _settings.Set(SettingsStore.Keys.PreferredIp, item.Address);
-        RefreshPairingTab(regenerateQr: true);
+        RefreshPairingTab();
     }
 
     private sealed record InterfaceItem(string InterfaceName, string Address)
@@ -207,27 +227,46 @@ public sealed class SettingsForm : Form
         _currentPinLabel.Text = "••••••";
     }
 
-    private void TogglePinVisibility()
+    /// <summary>
+    /// Расшифровывает сохранённую DPAPI-копию PIN, если она есть — используется и для
+    /// показа в UI (TogglePinVisibility), и чтобы зашить PIN прямо в QR-код
+    /// (RefreshPairingTab), раз он всё равно известен агенту в открытом виде.
+    /// </summary>
+    private string? TryGetCurrentPlainPin()
     {
         var protectedBase64 = _settings.Get(SettingsStore.Keys.PinPlainProtected);
-        if (protectedBase64 is null) return;
+        if (protectedBase64 is null) return null;
+
+        try
+        {
+            return System.Text.Encoding.UTF8.GetString(
+                DpapiProtector.UnprotectPin(Convert.FromBase64String(protectedBase64)));
+        }
+        catch (CryptographicException)
+        {
+            // DPAPI-блоб защищён на уровне машины: расшифровка не удастся, если БД
+            // скопирована на другой ПК (см. DpapiProtector) — это ожидаемо, не баг.
+            return null;
+        }
+    }
+
+    private void TogglePinVisibility()
+    {
+        if (_settings.Get(SettingsStore.Keys.PinPlainProtected) is null) return;
 
         _pinRevealed = !_pinRevealed;
         if (_pinRevealed)
         {
-            try
+            var pin = TryGetCurrentPlainPin();
+            if (pin is null)
             {
-                var pin = System.Text.Encoding.UTF8.GetString(
-                    DpapiProtector.UnprotectPin(Convert.FromBase64String(protectedBase64)));
-                _currentPinLabel.Text = pin;
-                _togglePinVisibilityButton.Text = "Скрыть";
-            }
-            catch (CryptographicException)
-            {
-                // DPAPI-блоб защищён на уровне машины: расшифровка не удастся, если БД
-                // скопирована на другой ПК (см. DpapiProtector) — это ожидаемо, не баг.
                 _currentPinLabel.Text = "не удалось расшифровать";
                 _pinRevealed = false;
+            }
+            else
+            {
+                _currentPinLabel.Text = pin;
+                _togglePinVisibilityButton.Text = "Скрыть";
             }
         }
         else
@@ -248,13 +287,14 @@ public sealed class SettingsForm : Form
         }
 
         _settings.Set(SettingsStore.Keys.PinHash, PinHasher.Hash(pin));
-        // Отдельная DPAPI-защищённая копия в открытом виде — только чтобы можно было
-        // посмотреть PIN в этом окне позже, не спрашивая пользователя каждый раз заново.
+        // Отдельная DPAPI-защищённая копия в открытом виде — чтобы можно было посмотреть
+        // PIN в этом окне позже и зашить его в QR-код (RefreshPairingTab), не спрашивая
+        // пользователя каждый раз заново.
         _settings.Set(SettingsStore.Keys.PinPlainProtected,
             Convert.ToBase64String(DpapiProtector.ProtectPin(System.Text.Encoding.UTF8.GetBytes(pin))));
 
-        RefreshCurrentPinLabel();
-        MessageBox.Show(this, "PIN установлен. Он также сохранён здесь — посмотреть его можно кнопкой «Показать».",
+        RefreshPairingTab(); // перегенерирует QR уже с новым PIN внутри
+        MessageBox.Show(this, "PIN установлен и зашит в QR-код выше. Посмотреть его снова можно кнопкой «Показать».",
             "Remote Shutdown Agent", MessageBoxButtons.OK, MessageBoxIcon.Information);
         _newPinTextBox.Clear();
     }
@@ -262,7 +302,7 @@ public sealed class SettingsForm : Form
     // ---- Вкладка "Устройства": список сопряжённых, отзыв доступа ----
     private TabPage BuildDevicesTab()
     {
-        var page = new TabPage("Устройства");
+        var page = new TabPage("Устройства") { AutoScroll = true };
         var layout = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2, Padding = new Padding(16) };
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));

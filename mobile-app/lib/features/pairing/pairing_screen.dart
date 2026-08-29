@@ -21,6 +21,11 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
   final _portController = TextEditingController(text: '54321');
   final _pinController = TextEditingController();
 
+  /// PIN, пришедший вместе с host+port из QR-кода (если агент знает его в открытом виде,
+  /// см. windows-agent/.../SettingsForm.cs) — используется, чтобы не просто подставить его
+  /// в поле, а сразу подтвердить пейринг одним сканом, без ручного ввода.
+  String? _scannedPin;
+
   @override
   void dispose() {
     _hostController.dispose();
@@ -35,6 +40,15 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
 
     ref.listen<PairingState>(pairingControllerProvider, (previous, next) {
       if (next is PairingSuccess) widget.onPaired();
+
+      // Если PIN пришёл из QR — подтверждаем автоматически, как только контроллер дошёл
+      // до экрана ввода PIN, вместо того чтобы заставлять пользователя нажимать ещё раз.
+      if (next is PairingAwaitingPin && _scannedPin != null) {
+        final pin = _scannedPin!;
+        _scannedPin = null;
+        _pinController.text = pin;
+        ref.read(pairingControllerProvider.notifier).confirmPin(pin);
+      }
     });
 
     return Scaffold(
@@ -79,15 +93,21 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
     ref.read(pairingControllerProvider.notifier).confirmPin(pin);
   }
 
-  /// Открывает сканер QR-кода и подставляет распознанные host+port в поля формы —
-  /// PIN пользователь всё равно вводит сам на следующем шаге (см. docs/roadmap.md).
+  /// Открывает сканер QR-кода: host+port подставляются в форму; если в QR был и PIN —
+  /// запоминаем его и сразу запускаем пейринг (см. ref.listen выше) — сканирование
+  /// одного кадра заменяет весь ручной ввод (см. docs/roadmap.md).
   Future<void> _scanQr() async {
-    final result = await Navigator.of(context).push<({String host, int port})>(
+    final result = await Navigator.of(context).push<({String host, int port, String? pin})>(
       MaterialPageRoute(builder: (_) => const QrScanScreen()),
     );
     if (result == null) return;
     _hostController.text = result.host;
     _portController.text = result.port.toString();
+
+    if (result.pin != null) {
+      _scannedPin = result.pin;
+      _submitConnect();
+    }
   }
 }
 
