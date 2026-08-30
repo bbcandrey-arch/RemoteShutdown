@@ -61,7 +61,10 @@ class _PcListScreenState extends State<PcListScreen> {
                   ),
                 )
               : ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+                  // 96 — запас под FAB; плюс safe-area снизу (жестовая навигация/
+                  // edge-to-edge), иначе последний пункт списка перекрывается
+                  // системной панелью на некоторых телефонах.
+                  padding: EdgeInsets.fromLTRB(16, 8, 16, 96 + MediaQuery.paddingOf(context).bottom),
                   itemCount: _profiles.length,
                   itemBuilder: (context, index) {
                     final profile = _profiles[index];

@@ -63,7 +63,12 @@ class DashboardScreen extends ConsumerWidget {
       body: RefreshIndicator(
         onRefresh: controller.refresh,
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          // Обычного EdgeInsets.all(16) недостаточно на телефонах с жестовой
+          // навигацией/edge-to-edge (низ экрана — системная область, не safe area
+          // сама по себе прибавляет отступ только сверху под AppBar) — без явного
+          // нижнего отступа последние карточки (таймеры) перекрывались системной
+          // панелью снизу. См. отчёт на реальном устройстве.
+          padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + MediaQuery.paddingOf(context).bottom),
           children: [
             _StatusCard(online: state.online, loading: state.loading, errorMessage: state.errorMessage),
             if (state.pendingActionsCount > 0) ...[

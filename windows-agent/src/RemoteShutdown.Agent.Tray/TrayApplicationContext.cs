@@ -92,6 +92,14 @@ public sealed class TrayApplicationContext : ApplicationContext
     {
         if (_settingsForm is { IsDisposed: false })
         {
+            // Окно после закрытия крестиком не уничтожается, а просто прячется
+            // (SettingsForm, hideInsteadOfClose) — Activate() сам по себе не показывает
+            // скрытое окно, он только переводит фокус на уже видимое. Без Show() здесь
+            // повторные двойной клик/"Настройки" из меню трея молча ничего не делали
+            // после первого закрытия окна — тот самый баг.
+            _settingsForm.Show();
+            if (_settingsForm.WindowState == FormWindowState.Minimized)
+                _settingsForm.WindowState = FormWindowState.Normal;
             _settingsForm.Activate();
             return;
         }
