@@ -15,7 +15,7 @@ class RemoteShutdownApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Выключение ПК',
+      title: 'Выключатель ПК',
       theme: ThemeData(colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo)),
       home: const _StartupGate(),
     );
