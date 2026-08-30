@@ -35,6 +35,27 @@ public sealed class SettingsForm : Form
     private TextBox _deviceNameTextBox = null!;
     private Label _firewallStatusLabel = null!;
 
+    /// <summary>
+    /// Версия из Directory.Build.props (Version/Authors) — та же информация, что видна в
+    /// свойствах exe в Проводнике (Подробно), но и прямо в UI, чтобы не искать. Читаем из
+    /// FileVersionInfo (ProductVersion), а не AssemblyVersion — тот всегда дополняется до
+    /// четырёх чисел ("1.1.0.0"), тогда как ProductVersion отражает Version как есть.
+    /// Берём путь из Environment.ProcessPath (не Assembly.Location) — при публикации как
+    /// single-file (см. distrib/) Assembly.Location всегда пустая строка.
+    /// </summary>
+    private static string AppVersion
+    {
+        get
+        {
+            if (Environment.ProcessPath is not { } path) return "?";
+            var version = System.Diagnostics.FileVersionInfo.GetVersionInfo(path).ProductVersion ?? "?";
+            // .NET SDK дописывает к ProductVersion хэш коммита ("1.1.0+abcdef...") —
+            // это для трассировки сборки, пользователю в UI он не нужен.
+            var plusIndex = version.IndexOf('+');
+            return plusIndex >= 0 ? version[..plusIndex] : version;
+        }
+    }
+
     /// <param name="hideInsteadOfClose">
     /// true (по умолчанию, обычный запуск из трея) — закрытие окна крестиком его просто
     /// прячет, а не завершает процесс, т.к. трей должен продолжать работать. false — для
@@ -47,7 +68,7 @@ public sealed class SettingsForm : Form
         _pairedDevices = new PairedDeviceStore(db);
         _taskLog = taskLog ?? new TaskLogStore(db);
 
-        Text = "Remote Shutdown Agent — настройки";
+        Text = $"Remote Shutdown Agent — настройки (v{AppVersion})";
         StartPosition = FormStartPosition.CenterScreen;
         if (hideInsteadOfClose)
             FormClosing += (_, e) => { e.Cancel = true; Hide(); }; // трей живёт дольше окна — просто прячем его
@@ -526,6 +547,14 @@ public sealed class SettingsForm : Form
         var saveButton = new Button { Text = "Сохранить", AutoSize = true, Margin = new Padding(0, 20, 0, 0) };
         saveButton.Click += (_, _) => SaveGeneralTab();
         layout.Controls.Add(saveButton);
+
+        layout.Controls.Add(new Label
+        {
+            AutoSize = true,
+            ForeColor = System.Drawing.SystemColors.GrayText,
+            Margin = new Padding(0, 24, 0, 0),
+            Text = $"Remote Shutdown Agent v{AppVersion} · vol.and",
+        });
 
         page.Controls.Add(layout);
         return page;

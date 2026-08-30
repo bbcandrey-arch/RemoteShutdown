@@ -1,0 +1,15 @@
+<Project>
+  <!--
+    Общие метаданные версии/авторства для всех проектов решения — попадают и в
+    AssemblyVersion/FileVersion (видно в свойствах exe в Проводнике), и в
+    /status.agentVersion (StatusEndpoints.cs), и читаются SettingsForm для показа
+    в UI трея. Один Directory.Build.props вместо дублирования в каждом .csproj.
+  -->
+  <PropertyGroup>
+    <Version>1.1.0</Version>
+    <Authors>vol.and</Authors>
+    <Company>vol.and</Company>
+    <Product>Remote Shutdown Agent</Product>
+    <Copyright>© vol.and</Copyright>
+  </PropertyGroup>
+</Project>

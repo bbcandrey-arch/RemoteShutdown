@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/app_info.dart';
 import '../../models/timer_task.dart';
 import '../../theme/app_theme.dart';
 import '../pc_list/pc_list_screen.dart';
@@ -48,10 +49,13 @@ class DashboardScreen extends ConsumerWidget {
                   ? null
                   : _renamePc(context, controller, state.profile!.deviceName),
               _MenuAction.unpair => _confirmUnpair(context, controller),
+              _MenuAction.about => _showAbout(context),
             },
             itemBuilder: (_) => const [
               PopupMenuItem(value: _MenuAction.rename, child: Text('Переименовать ПК')),
               PopupMenuItem(value: _MenuAction.unpair, child: Text('Отвязать ПК')),
+              PopupMenuDivider(),
+              PopupMenuItem(value: _MenuAction.about, child: Text('О приложении')),
             ],
           ),
         ],
@@ -147,7 +151,19 @@ class DashboardScreen extends ConsumerWidget {
   }
 }
 
-enum _MenuAction { rename, unpair }
+enum _MenuAction { rename, unpair, about }
+
+/// Показывает версию/авторство приложения — стандартный `showAboutDialog` (даёт
+/// системный вид "О программе": иконка, имя, версия, кнопка "Лицензии" со списком
+/// пакетов) вместо самодельного диалога.
+void _showAbout(BuildContext context) {
+  showAboutDialog(
+    context: context,
+    applicationName: AppInfo.name,
+    applicationVersion: AppInfo.version,
+    applicationLegalese: '© ${AppInfo.author}',
+  );
+}
 
 /// Заголовок раздела — единый стиль вместо titleSmall вперемешку с разным цветом
 /// по всему экрану (см. скилл mobile-android-design: типографика через тему, а не
