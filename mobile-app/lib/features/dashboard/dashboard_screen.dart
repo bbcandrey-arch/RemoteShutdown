@@ -108,10 +108,13 @@ class DashboardScreen extends ConsumerWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Переименовать ПК'),
+        // hintText, а не labelText — заголовок диалога уже говорит, что это за поле,
+        // а плавающая labelText внутри поля на некоторых телефонах наезжала на введённый
+        // текст (см. аналогичный фикс в pairing_screen.dart, _LabeledField).
         content: TextField(
           controller: nameController,
           autofocus: true,
-          decoration: const InputDecoration(labelText: 'Имя ПК'),
+          decoration: const InputDecoration(hintText: 'Имя ПК'),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Отмена')),

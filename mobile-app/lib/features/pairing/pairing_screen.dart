@@ -148,16 +148,21 @@ class _ConnectForm extends StatelessWidget {
           label: const Text('Сканировать QR-код'),
         ),
         const SizedBox(height: 16),
-        TextField(
-          controller: hostController,
-          decoration: const InputDecoration(labelText: 'IP-адрес ПК', hintText: '192.168.1.42'),
-          keyboardType: TextInputType.text,
+        _LabeledField(
+          label: 'IP-адрес ПК',
+          child: TextField(
+            controller: hostController,
+            decoration: const InputDecoration(hintText: '192.168.1.42'),
+            keyboardType: TextInputType.text,
+          ),
         ),
-        const SizedBox(height: 8),
-        TextField(
-          controller: portController,
-          decoration: const InputDecoration(labelText: 'Порт'),
-          keyboardType: TextInputType.number,
+        const SizedBox(height: 16),
+        _LabeledField(
+          label: 'Порт',
+          child: TextField(
+            controller: portController,
+            keyboardType: TextInputType.number,
+          ),
         ),
         if (errorMessage != null) ...[
           const SizedBox(height: 12),
@@ -184,16 +189,44 @@ class _PinForm extends StatelessWidget {
       children: [
         const Text('Введите PIN, заданный на компьютере.'),
         const SizedBox(height: 16),
-        TextField(
-          controller: pinController,
-          decoration: const InputDecoration(labelText: 'PIN'),
-          keyboardType: TextInputType.number,
-          obscureText: true,
-          autofocus: true,
+        _LabeledField(
+          label: 'PIN',
+          child: TextField(
+            controller: pinController,
+            keyboardType: TextInputType.number,
+            obscureText: true,
+            autofocus: true,
+          ),
         ),
         const SizedBox(height: 24),
         FilledButton(onPressed: onSubmit, child: const Text('Подтвердить')),
         TextButton(onPressed: onCancel, child: const Text('Отмена')),
+      ],
+    );
+  }
+}
+
+/// Подпись поля отдельной строкой над самим полем — вместо плавающей labelText
+/// внутри filled-поля: та на некоторых телефонах (крупный системный шрифт и т.п.)
+/// накладывалась на введённое значение. Места на экране достаточно, мельчить незачем.
+class _LabeledField extends StatelessWidget {
+  final String label;
+  final Widget child;
+  const _LabeledField({required this.label, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+        ),
+        const SizedBox(height: 6),
+        child,
       ],
     );
   }

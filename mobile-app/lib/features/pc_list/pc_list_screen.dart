@@ -115,7 +115,9 @@ class _PcListScreenState extends State<PcListScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Переименовать ПК'),
-        content: TextField(controller: controller, autofocus: true, decoration: const InputDecoration(labelText: 'Имя ПК')),
+        // hintText, а не labelText — см. аналогичный фикс в pairing_screen.dart
+        // (_LabeledField): плавающая labelText на некоторых телефонах наезжала на текст.
+        content: TextField(controller: controller, autofocus: true, decoration: const InputDecoration(hintText: 'Имя ПК')),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Отмена')),
           FilledButton(onPressed: () => Navigator.pop(ctx, controller.text), child: const Text('Сохранить')),
