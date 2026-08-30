@@ -237,6 +237,16 @@ class DashboardController extends StateNotifier<DashboardState> {
   Future<void> adjustVolume(String action) =>
       _runCommand('/commands/volume', {'action': action}, null, refreshAfter: false);
 
+  /// Плей/пауза и следующий/предыдущий трек — эмуляция медиаклавиш на ПК
+  /// (MediaControlService), не привязано к конкретному плееру. Как и громкость — без
+  /// refresh() после и без записи в журнал задач (частое, некритичное действие).
+  Future<void> mediaPlayPause() => _runCommand('/commands/media', const {'action': 'playPause'}, null, refreshAfter: false);
+
+  Future<void> mediaNext() => _runCommand('/commands/media', const {'action': 'next'}, null, refreshAfter: false);
+
+  Future<void> mediaPrevious() =>
+      _runCommand('/commands/media', const {'action': 'previous'}, null, refreshAfter: false);
+
   /// Создаёт таймер отложенного выключения (быстрые пресеты на Dashboard: 15/30/60 мин).
   /// При сетевой ошибке (ПК временно недоступен) действие не теряется, а уходит в
   /// [PendingActionsQueue] и будет отправлено автоматически при следующем удачном

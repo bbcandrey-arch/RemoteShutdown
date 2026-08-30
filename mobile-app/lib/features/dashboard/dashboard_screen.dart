@@ -66,17 +66,15 @@ class DashboardScreen extends ConsumerWidget {
               const SizedBox(height: 8),
               _PendingActionsBanner(count: state.pendingActionsCount),
             ],
+            const SizedBox(height: 16),
+            _SectionCard(title: 'Основные действия', child: _QuickCommands(controller: controller)),
+            const SizedBox(height: 12),
+            _SectionCard(title: 'Таймеры выключения', child: _QuickShutdownPresets(controller: controller)),
+            const SizedBox(height: 12),
+            _SectionCard(title: 'Громкость', child: _VolumeControls(controller: controller)),
+            const SizedBox(height: 12),
+            _SectionCard(title: 'Медиа', child: _MediaControls(controller: controller)),
             const SizedBox(height: 20),
-            _SectionLabel('Команды'),
-            const SizedBox(height: 8),
-            _QuickCommands(controller: controller),
-            const SizedBox(height: 20),
-            _SectionLabel('Выключить через…'),
-            const SizedBox(height: 8),
-            _QuickShutdownPresets(controller: controller),
-            const SizedBox(height: 20),
-            _VolumeControls(controller: controller),
-            const SizedBox(height: 24),
             _SectionLabel('Активные задачи'),
             const SizedBox(height: 8),
             _ActiveTimersList(timers: state.timers, controller: controller),
@@ -247,20 +245,44 @@ class _PendingActionsBanner extends StatelessWidget {
   }
 }
 
+/// Карточка-раздел с заголовком — единый контейнер вместо голого списка виджетов
+/// вперемешку с текстовыми ярлыками (см. референс дизайна: сгруппированные блоки).
+class _SectionCard extends StatelessWidget {
+  final String title;
+  final Widget child;
+  const _SectionCard({required this.title, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 12),
+            child,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _QuickCommands extends StatelessWidget {
   final DashboardController controller;
   const _QuickCommands({required this.controller});
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Выключение — единственное действие в сплошном "тревожном" цвете: по M3
-        // сплошной error оставляют для самого критичного действия, остальные
-        // безопаснее откатить, поэтому они — filled-tonal (мягче, но всё равно
-        // выделены на фоне обычных Outlined).
+        // Выключение — самое частое и самое необратимое действие здесь, поэтому оно
+        // одно, крупное, во весь ряд и в сплошном "тревожном" цвете; всё остальное —
+        // мельче и в один общий ряд ниже (по M3 сплошной error оставляют только для
+        // самого критичного действия).
         FilledButton.icon(
           onPressed: () => _confirmAndRun(context, 'Выключить ПК сейчас?', controller.shutdownNow),
           icon: const Icon(Icons.power_settings_new),
@@ -268,27 +290,24 @@ class _QuickCommands extends StatelessWidget {
           style: FilledButton.styleFrom(
             backgroundColor: Theme.of(context).colorScheme.error,
             foregroundColor: Theme.of(context).colorScheme.onError,
+            padding: const EdgeInsets.symmetric(vertical: 18),
+            textStyle: Theme.of(context).textTheme.titleMedium,
           ),
         ),
-        FilledButton.tonalIcon(
-          onPressed: () => _confirmAndRun(context, 'Перезагрузить ПК?', controller.restartNow),
-          icon: const Icon(Icons.restart_alt),
-          label: const Text('Перезагрузка'),
-        ),
-        FilledButton.tonalIcon(
-          onPressed: controller.sleepNow,
-          icon: const Icon(Icons.bedtime),
-          label: const Text('Сон'),
-        ),
-        FilledButton.tonalIcon(
-          onPressed: controller.hibernateNow,
-          icon: const Icon(Icons.ac_unit),
-          label: const Text('Гибернация'),
-        ),
-        FilledButton.tonalIcon(
-          onPressed: controller.lockNow,
-          icon: const Icon(Icons.lock),
-          label: const Text('Заблокировать'),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _SmallTonalButton(
+              icon: Icons.restart_alt,
+              label: 'Перезагрузка',
+              onPressed: () => _confirmAndRun(context, 'Перезагрузить ПК?', controller.restartNow),
+            ),
+            _SmallTonalButton(icon: Icons.bedtime, label: 'Сон', onPressed: controller.sleepNow),
+            _SmallTonalButton(icon: Icons.ac_unit, label: 'Гибернация', onPressed: controller.hibernateNow),
+            _SmallTonalButton(icon: Icons.lock, label: 'Заблокировать', onPressed: controller.lockNow),
+          ],
         ),
       ],
     );
@@ -315,26 +334,78 @@ class _QuickCommands extends StatelessWidget {
   }
 }
 
-/// Ряд быстрых пресетов отложенного выключения прямо на главном экране — одним тапом,
-/// без модальных диалогов и перехода на отдельный экран таймера.
+/// Второстепенная команда — заметно мельче основной кнопки "Выключить" (меньше
+/// отступы и размер текста/иконки), но остаётся полноценной кнопкой с тем же
+/// filled-tonal стилем, а не просто иконкой без подписи.
+class _SmallTonalButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback? onPressed;
+  const _SmallTonalButton({required this.icon, required this.label, required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    return FilledButton.tonalIcon(
+      onPressed: onPressed,
+      icon: Icon(icon, size: 16),
+      label: Text(label),
+      style: FilledButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        textStyle: Theme.of(context).textTheme.bodySmall,
+        visualDensity: VisualDensity.compact,
+      ),
+    );
+  }
+}
+
+/// Пресеты отложенного выключения прямо на главном экране — одним тапом, без
+/// модальных диалогов и перехода на отдельный экран таймера. Частые интервалы
+/// (15/30/60 мин) — крупные кнопки в один тап; более редкие и длинные (1.5/2/3 часа)
+/// — мельче и подписаны в часах, а не в "непонятных" минутах вроде "180 мин".
 class _QuickShutdownPresets extends StatelessWidget {
   final DashboardController controller;
   const _QuickShutdownPresets({required this.controller});
 
-  static const _presets = [15, 30, 60];
+  static const _bigPresetsMinutes = [15, 30, 60];
+  static const _smallPresetsMinutes = [90, 120, 180];
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 8,
-      children: _presets
-          .map((minutes) => ActionChip(
-                avatar: const Icon(Icons.timer_outlined, size: 18),
-                label: Text('$minutes мин'),
-                onPressed: () => controller.scheduleShutdownIn(minutes),
-              ))
-          .toList(),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            for (final minutes in _bigPresetsMinutes) ...[
+              if (minutes != _bigPresetsMinutes.first) const SizedBox(width: 8),
+              Expanded(
+                child: FilledButton.tonal(
+                  onPressed: () => controller.scheduleShutdownIn(minutes),
+                  style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
+                  child: Text('$minutes мин'),
+                ),
+              ),
+            ],
+          ],
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          children: _smallPresetsMinutes
+              .map((minutes) => ActionChip(
+                    label: Text(_hoursLabel(minutes)),
+                    onPressed: () => controller.scheduleShutdownIn(minutes),
+                  ))
+              .toList(),
+        ),
+      ],
     );
+  }
+
+  String _hoursLabel(int minutes) {
+    final hours = minutes / 60;
+    final text = hours == hours.roundToDouble() ? hours.toStringAsFixed(0) : hours.toStringAsFixed(1);
+    return '$text ч';
   }
 }
 
@@ -344,22 +415,34 @@ class _VolumeControls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        child: Row(
-          children: [
-            Padding(
-              padding: const EdgeInsets.only(left: 4),
-              child: Text('Громкость', style: Theme.of(context).textTheme.bodyLarge),
-            ),
-            const Spacer(),
-            IconButton(icon: const Icon(Icons.volume_down), onPressed: () => controller.adjustVolume('down')),
-            IconButton(icon: const Icon(Icons.volume_up), onPressed: () => controller.adjustVolume('up')),
-            IconButton(icon: const Icon(Icons.volume_off), onPressed: () => controller.adjustVolume('mute')),
-          ],
-        ),
-      ),
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: [
+        IconButton.filledTonal(icon: const Icon(Icons.volume_down), onPressed: () => controller.adjustVolume('down')),
+        IconButton.filledTonal(icon: const Icon(Icons.volume_up), onPressed: () => controller.adjustVolume('up')),
+        IconButton.filledTonal(icon: const Icon(Icons.volume_off), onPressed: () => controller.adjustVolume('mute')),
+      ],
+    );
+  }
+}
+
+/// Плей/пауза и переключение треков — управление воспроизведением на ПК отдельно от
+/// громкости (эмуляция медиаклавиш, см. windows-agent MediaControlService). Плей и
+/// пауза — одна и та же клавиша-переключатель на стороне Windows, поэтому это одна
+/// кнопка, а не раздельные "Играть"/"Пауза".
+class _MediaControls extends StatelessWidget {
+  final DashboardController controller;
+  const _MediaControls({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: [
+        IconButton.filledTonal(icon: const Icon(Icons.skip_previous), onPressed: controller.mediaPrevious),
+        IconButton.filled(icon: const Icon(Icons.play_arrow), onPressed: controller.mediaPlayPause),
+        IconButton.filledTonal(icon: const Icon(Icons.skip_next), onPressed: controller.mediaNext),
+      ],
     );
   }
 }

@@ -1,3 +1,4 @@
+using RemoteShutdown.Agent.Core.Media;
 using RemoteShutdown.Agent.Core.Power;
 using RemoteShutdown.Agent.Core.Security;
 using RemoteShutdown.Agent.Core.Storage;
@@ -9,6 +10,7 @@ public static class CommandEndpoints
 {
     public sealed record DelayedActionRequest(int DelaySeconds = 0);
     public sealed record VolumeRequest(string Action);
+    public sealed record MediaRequest(string Action);
 
     public static void MapCommandEndpoints(this WebApplication app)
     {
@@ -52,6 +54,16 @@ public static class CommandEndpoints
             volume.Execute(action);
             var state = volume.GetState();
             return Results.Ok(ApiResponse.Ok(ctx.GetRequestId(), new { level = state.Level, muted = state.Muted }));
+        });
+
+        app.MapPost("/commands/media", (MediaRequest request, HttpContext ctx, MediaControlService media) =>
+        {
+            if (!Enum.TryParse<MediaAction>(request.Action, ignoreCase: true, out var action))
+                return Results.Json(ApiResponse.Fail(ctx.GetRequestId(), ErrorCodes.InternalError, $"Unknown media action '{request.Action}'."), statusCode: 400);
+
+            // Как и громкость — не пишем в журнал задач, слишком частое/некритичное событие.
+            media.Execute(action);
+            return Results.Ok(ApiResponse.Ok(ctx.GetRequestId()));
         });
     }
 
