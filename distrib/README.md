@@ -27,6 +27,34 @@ dotnet publish src/RemoteShutdown.Agent.Api/RemoteShutdown.Agent.Api.csproj  -c 
 dotnet publish src/RemoteShutdown.Agent.Tray/RemoteShutdown.Agent.Tray.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o ../distrib/windows-agent
 ```
 
+**Важно**: если publish делался в тот же `-o` без чистки — иногда (несколько
+раз ловили на практике) он инкрементально пропускает нативные зависимости
+(`e_sqlite3.dll`, `aspnetcorev2_inprocess.dll`), и агент падает при первом
+обращении к SQLite. Если сомневаетесь — удалите `bin/`/`obj/` у
+`RemoteShutdown.Agent.Api`/`.Core`/`.Tray` и `distrib/windows-agent/` перед
+publish, либо просто используйте `installer/build.ps1` ниже — он публикует
+с нуля каждый раз.
+
+### installer/ — инсталлятор (Inno Setup)
+
+`distrib/installer/RemoteShutdownAgent-Setup-<версия>.exe` — мастер
+установки для тех, кому не нужен ручной xcopy: ставит в
+`%LocalAppData%\RemoteShutdownAgent` (без прав администратора), создаёт
+ярлыки в Пуск и (по желанию) на рабочем столе, умеет добавить автозагрузку
+при установке, есть деинсталлятор. Данные агента (`%ProgramData%\...\agent.db`)
+при удалении **не трогает** — сопряжения и таймеры переживают
+переустановку/обновление.
+
+Пересобрать (публикует agent заново и сразу компилирует инсталлятор):
+```powershell
+# Требует Inno Setup (winget install JRSoftware.InnoSetup), если ISCC.exe
+# не в стандартном месте — windows-agent/installer/build.ps1 -IsccPath "..."
+powershell -ExecutionPolicy Bypass -File windows-agent/installer/build.ps1
+```
+Версию в `windows-agent/installer/setup.iss` (`MyAppVersion`) нужно вручную
+держать синхронной с `windows-agent/Directory.Build.props` (`Version`) —
+общего источника версии между .iss и .csproj в Inno Setup нет.
+
 ## mobile-app/
 
 Release APK, по одному на архитектуру процессора (меньше по размеру, чем
