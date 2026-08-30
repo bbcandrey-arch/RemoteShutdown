@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/security/device_profile_store.dart';
 import 'features/dashboard/dashboard_screen.dart';
 import 'features/pairing/pairing_screen.dart';
+import 'theme/app_theme.dart';
 
 void main() {
   runApp(const ProviderScope(child: RemoteShutdownApp()));
@@ -16,7 +17,9 @@ class RemoteShutdownApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Выключатель ПК',
-      theme: ThemeData(colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo)),
+      theme: AppTheme.light(),
+      darkTheme: AppTheme.dark(),
+      themeMode: ThemeMode.system,
       home: const _StartupGate(),
     );
   }

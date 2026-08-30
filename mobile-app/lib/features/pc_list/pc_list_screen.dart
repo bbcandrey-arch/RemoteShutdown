@@ -48,25 +48,48 @@ class _PcListScreenState extends State<PcListScreen> {
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _profiles.isEmpty
-              ? const Center(child: Padding(padding: EdgeInsets.all(24), child: Text('Сопряжённых ПК пока нет.')))
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Text(
+                      'Сопряжённых ПК пока нет.',
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodyMedium
+                          ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                    ),
+                  ),
+                )
               : ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
                   itemCount: _profiles.length,
                   itemBuilder: (context, index) {
                     final profile = _profiles[index];
-                    return ListTile(
-                      leading: Icon(profile.clientId == _lastUsedId ? Icons.computer : Icons.computer_outlined),
-                      title: Text(profile.deviceName),
-                      subtitle: Text('${profile.host}:${profile.port}'),
-                      onTap: () => openDashboardForPc(context, profile.clientId),
-                      trailing: PopupMenuButton<String>(
-                        onSelected: (value) {
-                          if (value == 'rename') _rename(profile);
-                          if (value == 'remove') _remove(profile);
-                        },
-                        itemBuilder: (_) => const [
-                          PopupMenuItem(value: 'rename', child: Text('Переименовать')),
-                          PopupMenuItem(value: 'remove', child: Text('Отвязать')),
-                        ],
+                    final isLastUsed = profile.clientId == _lastUsedId;
+                    final scheme = Theme.of(context).colorScheme;
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Card(
+                        child: ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: isLastUsed ? scheme.primaryContainer : scheme.surfaceContainerHighest,
+                            foregroundColor: isLastUsed ? scheme.onPrimaryContainer : scheme.onSurfaceVariant,
+                            child: const Icon(Icons.computer),
+                          ),
+                          title: Text(profile.deviceName),
+                          subtitle: Text('${profile.host}:${profile.port}'),
+                          onTap: () => openDashboardForPc(context, profile.clientId),
+                          trailing: PopupMenuButton<String>(
+                            onSelected: (value) {
+                              if (value == 'rename') _rename(profile);
+                              if (value == 'remove') _remove(profile);
+                            },
+                            itemBuilder: (_) => const [
+                              PopupMenuItem(value: 'rename', child: Text('Переименовать')),
+                              PopupMenuItem(value: 'remove', child: Text('Отвязать')),
+                            ],
+                          ),
+                        ),
                       ),
                     );
                   },
