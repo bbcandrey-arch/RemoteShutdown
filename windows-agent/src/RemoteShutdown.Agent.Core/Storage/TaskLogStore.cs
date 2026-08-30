@@ -8,7 +8,8 @@ public sealed record TaskLogEntry(
     string Kind,
     string Description,
     string? ClientId,
-    string? DeviceName);
+    string? DeviceName,
+    string? ClientIp);
 
 /// <summary>
 /// Журнал задач, прилетевших с телефона (docs/roadmap.md, "Уведомления и журнал задач"):
@@ -25,19 +26,20 @@ public sealed class TaskLogStore
 
     public TaskLogStore(AgentDatabase db) => _db = db;
 
-    public void Add(string kind, string description, string? clientId = null, string? deviceName = null)
+    public void Add(string kind, string description, string? clientId = null, string? deviceName = null, string? clientIp = null)
     {
         using var connection = _db.OpenConnection();
         using var cmd = connection.CreateCommand();
         cmd.CommandText = """
-            INSERT INTO TaskLog (OccurredAtUtc, Kind, Description, ClientId, DeviceName)
-            VALUES ($occurredAt, $kind, $description, $clientId, $deviceName)
+            INSERT INTO TaskLog (OccurredAtUtc, Kind, Description, ClientId, DeviceName, ClientIp)
+            VALUES ($occurredAt, $kind, $description, $clientId, $deviceName, $clientIp)
             """;
         cmd.Parameters.AddWithValue("$occurredAt", DateTime.UtcNow.ToString("O"));
         cmd.Parameters.AddWithValue("$kind", kind);
         cmd.Parameters.AddWithValue("$description", description);
         cmd.Parameters.AddWithValue("$clientId", (object?)clientId ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$deviceName", (object?)deviceName ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$clientIp", (object?)clientIp ?? DBNull.Value);
         cmd.ExecuteNonQuery();
     }
 
@@ -46,7 +48,7 @@ public sealed class TaskLogStore
     {
         using var connection = _db.OpenConnection();
         using var cmd = connection.CreateCommand();
-        cmd.CommandText = "SELECT Id, OccurredAtUtc, Kind, Description, ClientId, DeviceName FROM TaskLog ORDER BY Id DESC LIMIT $limit";
+        cmd.CommandText = "SELECT Id, OccurredAtUtc, Kind, Description, ClientId, DeviceName, ClientIp FROM TaskLog ORDER BY Id DESC LIMIT $limit";
         cmd.Parameters.AddWithValue("$limit", limit);
         return ReadAll(cmd);
     }
@@ -56,7 +58,7 @@ public sealed class TaskLogStore
     {
         using var connection = _db.OpenConnection();
         using var cmd = connection.CreateCommand();
-        cmd.CommandText = "SELECT Id, OccurredAtUtc, Kind, Description, ClientId, DeviceName FROM TaskLog WHERE Id > $afterId ORDER BY Id ASC";
+        cmd.CommandText = "SELECT Id, OccurredAtUtc, Kind, Description, ClientId, DeviceName, ClientIp FROM TaskLog WHERE Id > $afterId ORDER BY Id ASC";
         cmd.Parameters.AddWithValue("$afterId", afterId);
         return ReadAll(cmd);
     }
@@ -81,7 +83,8 @@ public sealed class TaskLogStore
                 Kind: reader.GetString(2),
                 Description: reader.GetString(3),
                 ClientId: reader.IsDBNull(4) ? null : reader.GetString(4),
-                DeviceName: reader.IsDBNull(5) ? null : reader.GetString(5)));
+                DeviceName: reader.IsDBNull(5) ? null : reader.GetString(5),
+                ClientIp: reader.IsDBNull(6) ? null : reader.GetString(6)));
         }
         return result;
     }

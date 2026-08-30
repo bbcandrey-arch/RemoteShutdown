@@ -6,9 +6,20 @@ public sealed record PairedDevice(
     byte[] SharedSecret,
     DateTime PairedAtUtc,
     DateTime? LastSeenUtc,
-    bool Revoked);
+    bool Revoked,
+    // Платформа ("Android"/"iOS"/...) и модель устройства ("SM-S908E", "Pixel 7", ...),
+    // если клиент их прислал при пейринге — показываются на вкладке "Устройства" в трее,
+    // чтобы отличать сопряжённые телефоны друг от друга не только по имени. Null для
+    // старых клиентов/записей, до появления этого поля. См. docs/roadmap.md.
+    string? Platform = null,
+    string? Model = null);
 
-public sealed record PairingSession(string PairingSessionId, string DeviceName, DateTime CreatedAtUtc);
+public sealed record PairingSession(
+    string PairingSessionId,
+    string DeviceName,
+    DateTime CreatedAtUtc,
+    string? Platform = null,
+    string? Model = null);
 
 public enum PairConfirmResult
 {

@@ -44,7 +44,9 @@ public static class PairingQrService
 
         using var generator = new QRCodeGenerator();
         using var data = generator.CreateQrCode(payload, QRCodeGenerator.ECCLevel.M);
-        var png = new PngByteQRCode(data).GetGraphic(pixelsPerModule: 10);
+        // 14px/модуль (было 10) — картинка теперь крупнее в UI (SettingsForm), крупный QR
+        // проще сканировать на расстоянии/с плохой камерой, не размывается при апскейле.
+        var png = new PngByteQRCode(data).GetGraphic(pixelsPerModule: 14);
 
         Directory.CreateDirectory(outputDirectory);
         var path = Path.Combine(outputDirectory, "pairing-qr.png");

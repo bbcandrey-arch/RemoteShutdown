@@ -27,9 +27,9 @@ public sealed class PairingService
         _devices = devices;
     }
 
-    public PairingSession InitPairing(string deviceName)
+    public PairingSession InitPairing(string deviceName, string? platform = null, string? model = null)
     {
-        var session = new PairingSession(Guid.NewGuid().ToString(), deviceName, DateTime.UtcNow);
+        var session = new PairingSession(Guid.NewGuid().ToString(), deviceName, DateTime.UtcNow, platform, model);
         _sessions[session.PairingSessionId] = session;
         PruneExpiredSessions();
         return session;
@@ -71,7 +71,9 @@ public sealed class PairingService
             SharedSecret: HmacSigner.GenerateSharedSecret(),
             PairedAtUtc: DateTime.UtcNow,
             LastSeenUtc: null,
-            Revoked: false);
+            Revoked: false,
+            Platform: session.Platform,
+            Model: session.Model);
 
         _devices.Add(device);
         return new PairConfirmOutcome(PairConfirmResult.Success, device);

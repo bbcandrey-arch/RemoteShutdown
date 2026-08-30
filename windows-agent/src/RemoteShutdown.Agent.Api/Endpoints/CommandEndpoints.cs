@@ -88,8 +88,12 @@ public static class CommandEndpoints
     {
         var device = ctx.Items["Device"] as PairedDevice;
         var when = delaySeconds > 0 ? $" через {delaySeconds / 60} мин" : " сейчас";
-        taskLog.Add("command", $"{ActionLabel(action)}{when}", device?.ClientId, device?.DeviceName);
+        taskLog.Add("command", $"{ActionLabel(action)}{when}", device?.ClientId, device?.DeviceName, ClientIp(ctx));
     }
+
+    /// <summary>IP, с которого пришла команда — показывается в журнале (docs/roadmap.md),
+    /// чтобы можно было заметить команду с незнакомого адреса в своей сети.</summary>
+    private static string? ClientIp(HttpContext ctx) => ctx.Connection.RemoteIpAddress?.ToString();
 
     private static string ActionLabel(PowerAction action) => action switch
     {

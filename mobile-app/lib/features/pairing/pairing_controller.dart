@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/device/local_device_info.dart';
 import '../../core/network/api_client.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/network/tls_pinning_client.dart';
@@ -85,8 +86,14 @@ class PairingController extends StateNotifier<PairingState> {
     try {
       // 'deviceName' здесь — имя ЭТОГО телефона, как оно будет видно в списке
       // сопряжённых устройств на ПК (вкладка "Устройства" в трее); имя самого ПК
-      // приходит отдельно, полем agentName в ответе ниже.
-      final data = await apiClient.postUnsigned('/pair/init', {'deviceName': 'Android Phone'});
+      // приходит отдельно, полем agentName в ответе ниже. platform/model — отдельные
+      // структурированные поля для тех же колонок (см. LocalDeviceInfo).
+      final localDevice = await LocalDeviceInfo.gather();
+      final data = await apiClient.postUnsigned('/pair/init', {
+        'deviceName': localDevice.displayName,
+        'platform': localDevice.platform,
+        'model': localDevice.model,
+      });
       final sessionId = data['pairingSessionId'] as String;
       final pcName = (data['agentName'] as String?) ?? qrDeviceName ?? host;
 

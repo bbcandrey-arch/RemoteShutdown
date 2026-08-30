@@ -33,6 +33,7 @@ public sealed class SettingsForm : Form
     private CheckBox _testModeCheckBox = null!;
     private CheckBox _autostartCheckBox = null!;
     private TextBox _deviceNameTextBox = null!;
+    private Label _firewallStatusLabel = null!;
 
     /// <param name="hideInsteadOfClose">
     /// true (по умолчанию, обычный запуск из трея) — закрытие окна крестиком его просто
@@ -47,9 +48,6 @@ public sealed class SettingsForm : Form
         _taskLog = taskLog ?? new TaskLogStore(db);
 
         Text = "Remote Shutdown Agent — настройки";
-        Width = 560;
-        Height = 720;
-        MinimumSize = new System.Drawing.Size(520, 500);
         StartPosition = FormStartPosition.CenterScreen;
         if (hideInsteadOfClose)
             FormClosing += (_, e) => { e.Cancel = true; Hide(); }; // трей живёт дольше окна — просто прячем его
@@ -65,6 +63,43 @@ public sealed class SettingsForm : Form
         RefreshDevicesTab();
         RefreshTaskLogTab();
         RefreshGeneralTab();
+
+        // Разумный размер по умолчанию для самого первого кадра — PreferredSize контролов
+        // до создания хэндла окна и первого прохода layout считается ненадёжно (заниженно),
+        // поэтому точная подгонка происходит в SizeToFitContent() по событию Shown, когда
+        // реальные метрики шрифтов/DPI уже применены. Без этой начальной оценки окно на
+        // мгновение показалось бы маленьким/дефолтным до первого Shown.
+        ClientSize = new System.Drawing.Size(620, 820);
+        Shown += (_, _) => SizeToFitContent();
+    }
+
+    /// <summary>
+    /// Подбирает размер окна под реальное содержимое вкладки "Сопряжение" (самая
+    /// высокая — QR-код + группа PIN), а не держит фиксированные Width/Height "на
+    /// глаз": раньше это либо обрезало контент (нужен был AutoScroll как костыль), либо
+    /// оставляло лишнее пустое место. Ширина/высота других вкладок (списки устройств и
+    /// журнала) подстраиваются под то же окно через Dock=Fill — компактно и без полос
+    /// прокрутки при обычном разрешении экрана.
+    /// Вызывается по Shown (не из конструктора) — до появления хэндла окна WinForms
+    /// считает PreferredSize по неточным метрикам (без реального прохода layout/DPI),
+    /// из-за чего окно раньше получалось у́же нужного при первом расчёте в конструкторе.
+    /// AutoScroll на вкладках остаётся как отдельная защита на случай маленького экрана
+    /// (см. ограничение по Screen.WorkingArea ниже), а не основной механизм.
+    /// </summary>
+    private void SizeToFitContent()
+    {
+        var pairingContent = _tabs.TabPages[0].Controls[0]; // TableLayoutPanel, AutoSize=true — см. BuildPairingTab
+        var preferred = pairingContent.PreferredSize;
+
+        var width = Math.Max(600, preferred.Width + 40);
+        var height = Math.Max(560, preferred.Height + _tabs.ItemSize.Height + 50);
+
+        var workingArea = Screen.FromControl(this).WorkingArea;
+        width = Math.Min(width, workingArea.Width - 40);
+        height = Math.Min(height, workingArea.Height - 40);
+
+        ClientSize = new System.Drawing.Size(width, height);
+        MinimumSize = new System.Drawing.Size(Math.Min(width, 560), Math.Min(height, 520));
     }
 
     // ---- Вкладка "Сопряжение": QR-код + IP/порт, установка PIN ----
@@ -76,7 +111,7 @@ public sealed class SettingsForm : Form
         var page = new TabPage("Сопряжение") { AutoScroll = true };
         var layout = new TableLayoutPanel { ColumnCount = 1, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(16) };
 
-        _qrPictureBox = new PictureBox { Width = 220, Height = 220, SizeMode = PictureBoxSizeMode.Zoom, BorderStyle = BorderStyle.FixedSingle };
+        _qrPictureBox = new PictureBox { Width = 300, Height = 300, SizeMode = PictureBoxSizeMode.Zoom, BorderStyle = BorderStyle.FixedSingle };
         layout.Controls.Add(_qrPictureBox);
 
         var interfacePanel = new FlowLayoutPanel { AutoSize = true, Margin = new Padding(0, 8, 0, 0) };
@@ -102,7 +137,7 @@ public sealed class SettingsForm : Form
         refreshQrButton.Click += (_, _) => RefreshPairingTab();
         layout.Controls.Add(refreshQrButton);
 
-        var pinGroup = new GroupBox { Text = "PIN для сопряжения", AutoSize = true, Width = 460, Margin = new Padding(0, 20, 0, 0) };
+        var pinGroup = new GroupBox { Text = "PIN для сопряжения", AutoSize = true, Width = 460, Margin = new Padding(0, 12, 0, 0) };
         var pinGroupLayout = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.TopDown, Padding = new Padding(8) };
 
         var currentPinPanel = new FlowLayoutPanel { AutoSize = true };
@@ -316,7 +351,9 @@ public sealed class SettingsForm : Form
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
         _devicesListView = new ListView { Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true, MultiSelect = false };
-        _devicesListView.Columns.Add("Устройство", 160);
+        _devicesListView.Columns.Add("Устройство", 150);
+        _devicesListView.Columns.Add("Платформа", 90);
+        _devicesListView.Columns.Add("Модель", 130);
         _devicesListView.Columns.Add("Сопряжено", 110);
         _devicesListView.Columns.Add("Последний раз онлайн", 130);
         _devicesListView.Columns.Add("Статус", 80);
@@ -341,6 +378,8 @@ public sealed class SettingsForm : Form
         foreach (var device in _pairedDevices.ListAll())
         {
             var item = new ListViewItem(device.DeviceName) { Tag = device.ClientId };
+            item.SubItems.Add(device.Platform ?? "—");
+            item.SubItems.Add(device.Model ?? "—");
             item.SubItems.Add(device.PairedAtUtc.ToLocalTime().ToString("dd.MM.yy HH:mm"));
             item.SubItems.Add(device.LastSeenUtc?.ToLocalTime().ToString("dd.MM.yy HH:mm") ?? "—");
             item.SubItems.Add(device.Revoked ? "Отозван" : "Активен");
@@ -374,7 +413,8 @@ public sealed class SettingsForm : Form
 
         _taskLogListView = new ListView { Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true };
         _taskLogListView.Columns.Add("Время", 130);
-        _taskLogListView.Columns.Add("Описание", 380);
+        _taskLogListView.Columns.Add("Описание", 340);
+        _taskLogListView.Columns.Add("IP клиента", 110);
         layout.Controls.Add(_taskLogListView, 0, 0);
 
         var refreshButton = new Button { Text = "Обновить", AutoSize = true };
@@ -392,6 +432,7 @@ public sealed class SettingsForm : Form
         {
             var item = new ListViewItem(entry.OccurredAtUtc.ToLocalTime().ToString("dd.MM.yy HH:mm:ss"));
             item.SubItems.Add(entry.Description);
+            item.SubItems.Add(entry.ClientIp ?? "—");
             if (entry.Kind == "error") item.ForeColor = System.Drawing.Color.DarkRed;
             _taskLogListView.Items.Add(item);
         }
@@ -459,8 +500,28 @@ public sealed class SettingsForm : Form
             Margin = new Padding(0, 0, 0, 16),
         });
 
-        _autostartCheckBox = new CheckBox { AutoSize = true, Text = "Запускать при входе в Windows" };
+        _autostartCheckBox = new CheckBox { AutoSize = true, Text = "Запускать при входе в Windows", Margin = new Padding(0, 0, 0, 16) };
         layout.Controls.Add(_autostartCheckBox);
+
+        var firewallGroup = new GroupBox { Text = "Брандмауэр Windows", AutoSize = true, Width = 460 };
+        var firewallLayout = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.TopDown, Padding = new Padding(8) };
+        _firewallStatusLabel = new Label { AutoSize = true, Margin = new Padding(0, 0, 0, 8) };
+        firewallLayout.Controls.Add(_firewallStatusLabel);
+        var firewallButton = new Button { Text = "Добавить правило в брандмауэр", AutoSize = true };
+        firewallButton.Click += (_, _) => AddFirewallRule();
+        firewallLayout.Controls.Add(firewallButton);
+        firewallLayout.Controls.Add(new Label
+        {
+            AutoSize = true,
+            MaximumSize = new System.Drawing.Size(430, 0),
+            ForeColor = System.Drawing.SystemColors.GrayText,
+            Margin = new Padding(0, 8, 0, 0),
+            Text = "Разрешает входящие подключения на порт агента — без этого правила Windows " +
+                   "может молча блокировать телефон в той же Wi-Fi сети. Потребует подтверждения " +
+                   "прав администратора (UAC).",
+        });
+        firewallGroup.Controls.Add(firewallLayout);
+        layout.Controls.Add(firewallGroup);
 
         var saveButton = new Button { Text = "Сохранить", AutoSize = true, Margin = new Padding(0, 20, 0, 0) };
         saveButton.Click += (_, _) => SaveGeneralTab();
@@ -470,12 +531,29 @@ public sealed class SettingsForm : Form
         return page;
     }
 
+    private void AddFirewallRule()
+    {
+        var port = (int)_portUpDown.Value;
+        var ok = FirewallRuleService.AddOrUpdateRule(port, out var message);
+        MessageBox.Show(this, message, "Remote Shutdown Agent",
+            MessageBoxButtons.OK, ok ? MessageBoxIcon.Information : MessageBoxIcon.Warning);
+        RefreshFirewallStatus();
+    }
+
+    private void RefreshFirewallStatus()
+    {
+        _firewallStatusLabel.Text = FirewallRuleService.RuleExists()
+            ? "Правило уже добавлено."
+            : "Правило ещё не добавлено.";
+    }
+
     private void RefreshGeneralTab()
     {
         _deviceNameTextBox.Text = _settings.Get(SettingsStore.Keys.DeviceName) ?? Environment.MachineName;
         _portUpDown.Value = int.TryParse(_settings.Get(SettingsStore.Keys.Port), out var p) ? p : 54321;
         _testModeCheckBox.Checked = _settings.Get(SettingsStore.Keys.TestMode) != "false";
         _autostartCheckBox.Checked = AutostartService.IsEnabled();
+        RefreshFirewallStatus();
     }
 
     private void SaveGeneralTab()
