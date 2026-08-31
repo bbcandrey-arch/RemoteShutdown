@@ -45,10 +45,14 @@ public sealed class AgentProcessManager : IDisposable
     public void Start(string executablePath)
     {
         if (IsRunning) return;
+        // ВАЖНО: CreateNoWindow (не WindowStyle.Minimized) — Api должен работать полностью
+        // в фоне, без консольного окна вообще. Свёрнутое окно можно случайно развернуть и
+        // закрыть крестиком, а закрытие консольного окна убивает процесс сервера целиком —
+        // именно так однажды "пропал" агент на втором ПК сразу после установки.
         _process = Process.Start(new ProcessStartInfo(executablePath)
         {
-            UseShellExecute = true,
-            WindowStyle = ProcessWindowStyle.Minimized,
+            UseShellExecute = false,
+            CreateNoWindow = true,
         });
     }
 
