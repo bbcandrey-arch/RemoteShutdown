@@ -20,8 +20,11 @@ public sealed class TrayApplicationContext : ApplicationContext
         _db.EnsureCreated();
         _settingsStore = new SettingsStore(_db);
         _taskLog = new TaskLogStore(_db);
-        if (_settingsStore.Get(SettingsStore.Keys.TestMode) is null)
-            _settingsStore.Set(SettingsStore.Keys.TestMode, "true");
+        // Единая точка дефолтов первого запуска (test_mode по умолчанию ВЫКЛЮЧЕН —
+        // см. AgentDefaults.cs) — раньше тут был отдельный дублирующий кусок, который
+        // на самом первом запуске (трей стартует раньше Api) успевал выставить
+        // test_mode="true" ДО того, как Api применит правильный дефолт "false".
+        AgentDefaults.Apply(_settingsStore);
 
         var menu = new ContextMenuStrip();
         menu.Items.Add("Настройки", null, (_, _) => ShowSettings());
@@ -32,7 +35,7 @@ public sealed class TrayApplicationContext : ApplicationContext
 
         _notifyIcon = new NotifyIcon
         {
-            Icon = System.Drawing.SystemIcons.Shield,
+            Icon = AppIcon.Load(),
             Text = "Remote Shutdown Agent",
             Visible = true,
             ContextMenuStrip = menu,
