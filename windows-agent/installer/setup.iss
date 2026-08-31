@@ -61,6 +61,12 @@ Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: 
     ValueName: "RemoteShutdownAgentTray"; ValueData: """{app}\{#MyAppExeName}"""; Tasks: autostart
 
 [Run]
+; Explorer кэширует иконку exe по пути к файлу и не всегда замечает, что exe был
+; перезаписан новой версией (типичный сценарий переустановки поверх старой) — из-за
+; этого ярлык/значок могут долго показывать старую размытую иконку, пока кэш не
+; сбросят вручную (переназначить иконку ярлыка, перелогиниться и т.п.). Сбрасываем
+; сами при установке, тихо, без перезапуска explorer.exe.
+Filename: "{sys}\ie4uinit.exe"; Parameters: "-ClearIconCache"; Flags: runhidden; StatusMsg: "Обновление кэша иконок Windows..."
 Filename: "{app}\{#MyAppExeName}"; Description: "Запустить {#MyAppName}"; Flags: nowait postinstall skipifsilent
 
 [UninstallRun]

@@ -44,7 +44,8 @@ public sealed class AgentDatabase
                     LastSeenUtc TEXT NULL,
                     Revoked INTEGER NOT NULL DEFAULT 0,
                     Platform TEXT NULL,
-                    Model TEXT NULL
+                    Model TEXT NULL,
+                    AppVersion TEXT NULL
                 );
 
                 CREATE TABLE IF NOT EXISTS Timers (
@@ -81,6 +82,7 @@ public sealed class AgentDatabase
         // EXISTS выше их не добавит на уже существующей таблице.
         AddColumnIfMissing(connection, "PairedDevices", "Platform", "TEXT NULL");
         AddColumnIfMissing(connection, "PairedDevices", "Model", "TEXT NULL");
+        AddColumnIfMissing(connection, "PairedDevices", "AppVersion", "TEXT NULL");
         AddColumnIfMissing(connection, "TaskLog", "ClientIp", "TEXT NULL");
     }
 

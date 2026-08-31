@@ -6,10 +6,11 @@ namespace RemoteShutdown.Agent.Api.Endpoints;
 
 public static class PairEndpoints
 {
-    // Platform/Model — необязательные: "Android"/"iOS"/... и модель телефона
-    // ("SM-S908E", "Pixel 7", ...), для отображения на вкладке "Устройства" в трее.
-    // Старые клиенты их просто не пришлют — null, ничего не ломается.
-    public sealed record PairInitRequest(string DeviceName, string? Platform = null, string? Model = null);
+    // Platform/Model/AppVersion — необязательные: "Android"/"iOS"/... , модель телефона
+    // ("SM-S908E", "Pixel 7", ...) и версия мобильного приложения, для отображения на
+    // вкладке "Устройства" в трее. Старые клиенты их просто не пришлют — null, ничего
+    // не ломается.
+    public sealed record PairInitRequest(string DeviceName, string? Platform = null, string? Model = null, string? AppVersion = null);
     public sealed record PairConfirmRequest(string PairingSessionId, string Pin);
 
     public static void MapPairEndpoints(this WebApplication app)
@@ -17,7 +18,7 @@ public static class PairEndpoints
         app.MapPost("/pair/init", (PairInitRequest request, HttpContext ctx, PairingService pairing, SettingsStore settings) =>
         {
             var requestId = ctx.GetRequestId();
-            var session = pairing.InitPairing(request.DeviceName, request.Platform, request.Model);
+            var session = pairing.InitPairing(request.DeviceName, request.Platform, request.Model, request.AppVersion);
             // agentName — имя самого ПК (не путать с request.DeviceName, это имя телефона,
             // которое агент показывает в списке сопряжённых устройств). Телефон использует
             // agentName как подпись этого ПК — см. docs/roadmap.md, "переименование ПК" и

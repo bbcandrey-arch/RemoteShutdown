@@ -69,6 +69,7 @@ public sealed class SettingsForm : Form
         _taskLog = taskLog ?? new TaskLogStore(db);
 
         Text = $"Remote Shutdown Agent — настройки (v{AppVersion})";
+        Icon = AppIcon.Load(); // без этого WinForms подставляет generic-иконку формы в заголовке окна
         StartPosition = FormStartPosition.CenterScreen;
         if (hideInsteadOfClose)
             FormClosing += (_, e) => { e.Cancel = true; Hide(); }; // трей живёт дольше окна — просто прячем его
@@ -374,7 +375,7 @@ public sealed class SettingsForm : Form
         _devicesListView = new ListView { Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true, MultiSelect = false };
         _devicesListView.Columns.Add("Устройство", 150);
         _devicesListView.Columns.Add("Платформа", 90);
-        _devicesListView.Columns.Add("Модель", 130);
+        _devicesListView.Columns.Add("Версия приложения", 130);
         _devicesListView.Columns.Add("Сопряжено", 110);
         _devicesListView.Columns.Add("Последний раз онлайн", 130);
         _devicesListView.Columns.Add("Статус", 80);
@@ -400,7 +401,7 @@ public sealed class SettingsForm : Form
         {
             var item = new ListViewItem(device.DeviceName) { Tag = device.ClientId };
             item.SubItems.Add(device.Platform ?? "—");
-            item.SubItems.Add(device.Model ?? "—");
+            item.SubItems.Add(device.AppVersion ?? "—");
             item.SubItems.Add(device.PairedAtUtc.ToLocalTime().ToString("dd.MM.yy HH:mm"));
             item.SubItems.Add(device.LastSeenUtc?.ToLocalTime().ToString("dd.MM.yy HH:mm") ?? "—");
             item.SubItems.Add(device.Revoked ? "Отозван" : "Активен");

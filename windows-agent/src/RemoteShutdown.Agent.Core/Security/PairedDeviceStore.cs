@@ -18,8 +18,8 @@ public sealed class PairedDeviceStore
         using var connection = _db.OpenConnection();
         using var cmd = connection.CreateCommand();
         cmd.CommandText = """
-            INSERT INTO PairedDevices (ClientId, DeviceName, SharedSecretProtected, PairedAtUtc, LastSeenUtc, Revoked, Platform, Model)
-            VALUES ($clientId, $deviceName, $secret, $pairedAt, $lastSeen, 0, $platform, $model)
+            INSERT INTO PairedDevices (ClientId, DeviceName, SharedSecretProtected, PairedAtUtc, LastSeenUtc, Revoked, Platform, Model, AppVersion)
+            VALUES ($clientId, $deviceName, $secret, $pairedAt, $lastSeen, 0, $platform, $model, $appVersion)
             """;
         cmd.Parameters.AddWithValue("$clientId", device.ClientId);
         cmd.Parameters.AddWithValue("$deviceName", device.DeviceName);
@@ -28,6 +28,7 @@ public sealed class PairedDeviceStore
         cmd.Parameters.AddWithValue("$lastSeen", (object?)device.LastSeenUtc?.ToString("O") ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$platform", (object?)device.Platform ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$model", (object?)device.Model ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$appVersion", (object?)device.AppVersion ?? DBNull.Value);
         cmd.ExecuteNonQuery();
     }
 
@@ -35,7 +36,7 @@ public sealed class PairedDeviceStore
     {
         using var connection = _db.OpenConnection();
         using var cmd = connection.CreateCommand();
-        cmd.CommandText = "SELECT ClientId, DeviceName, SharedSecretProtected, PairedAtUtc, LastSeenUtc, Revoked, Platform, Model FROM PairedDevices WHERE ClientId = $clientId";
+        cmd.CommandText = "SELECT ClientId, DeviceName, SharedSecretProtected, PairedAtUtc, LastSeenUtc, Revoked, Platform, Model, AppVersion FROM PairedDevices WHERE ClientId = $clientId";
         cmd.Parameters.AddWithValue("$clientId", clientId);
 
         using var reader = cmd.ExecuteReader();
@@ -48,7 +49,7 @@ public sealed class PairedDeviceStore
     {
         using var connection = _db.OpenConnection();
         using var cmd = connection.CreateCommand();
-        cmd.CommandText = "SELECT ClientId, DeviceName, SharedSecretProtected, PairedAtUtc, LastSeenUtc, Revoked, Platform, Model FROM PairedDevices ORDER BY PairedAtUtc DESC";
+        cmd.CommandText = "SELECT ClientId, DeviceName, SharedSecretProtected, PairedAtUtc, LastSeenUtc, Revoked, Platform, Model, AppVersion FROM PairedDevices ORDER BY PairedAtUtc DESC";
 
         using var reader = cmd.ExecuteReader();
         var result = new List<PairedDevice>();
@@ -84,5 +85,6 @@ public sealed class PairedDeviceStore
         LastSeenUtc: reader.IsDBNull(4) ? null : DateTime.Parse(reader.GetString(4)).ToUniversalTime(),
         Revoked: reader.GetInt32(5) != 0,
         Platform: reader.IsDBNull(6) ? null : reader.GetString(6),
-        Model: reader.IsDBNull(7) ? null : reader.GetString(7));
+        Model: reader.IsDBNull(7) ? null : reader.GetString(7),
+        AppVersion: reader.IsDBNull(8) ? null : reader.GetString(8));
 }

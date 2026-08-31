@@ -27,9 +27,9 @@ public sealed class PairingService
         _devices = devices;
     }
 
-    public PairingSession InitPairing(string deviceName, string? platform = null, string? model = null)
+    public PairingSession InitPairing(string deviceName, string? platform = null, string? model = null, string? appVersion = null)
     {
-        var session = new PairingSession(Guid.NewGuid().ToString(), deviceName, DateTime.UtcNow, platform, model);
+        var session = new PairingSession(Guid.NewGuid().ToString(), deviceName, DateTime.UtcNow, platform, model, appVersion);
         _sessions[session.PairingSessionId] = session;
         PruneExpiredSessions();
         return session;
@@ -73,7 +73,8 @@ public sealed class PairingService
             LastSeenUtc: null,
             Revoked: false,
             Platform: session.Platform,
-            Model: session.Model);
+            Model: session.Model,
+            AppVersion: session.AppVersion);
 
         _devices.Add(device);
         return new PairConfirmOutcome(PairConfirmResult.Success, device);
