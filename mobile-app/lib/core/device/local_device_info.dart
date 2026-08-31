@@ -8,11 +8,15 @@ import 'package:device_info_plus/device_info_plus.dart';
 /// iOS — platform различает их). См. docs/roadmap.md.
 class LocalDeviceInfo {
   final String platform;
+
+  /// Полная техническая модель (с производителем, если он не совпадает с моделью) —
+  /// для колонки "Модель" в трее. Отдельно от [displayName], чтобы обе колонки не
+  /// дублировали друг друга один в один.
   final String model;
 
   /// Имя, которое имеет смысл предложить как имя устройства по умолчанию при пейринге
-  /// (то, что ПК покажет в списке "Устройства") — конкретная модель информативнее
-  /// общей подписи вроде "Android Phone".
+  /// (то, что ПК покажет в списке "Устройства", колонка "Устройство") — короче, чем
+  /// [model], пользователь всё равно может переименовать в приложении.
   final String displayName;
 
   const LocalDeviceInfo({required this.platform, required this.model, required this.displayName});
@@ -22,14 +26,21 @@ class LocalDeviceInfo {
     try {
       if (Platform.isAndroid) {
         final info = await plugin.androidInfo;
-        final model = [info.manufacturer, info.model].where((s) => s.trim().isNotEmpty).join(' ').trim();
-        final display = model.isEmpty ? 'Android' : model;
-        return LocalDeviceInfo(platform: 'Android', model: display, displayName: display);
+        final rawModel = info.model.trim();
+        final fullModel =
+            [info.manufacturer, info.model].where((s) => s.trim().isNotEmpty).join(' ').trim();
+        final display = rawModel.isNotEmpty ? rawModel : (fullModel.isEmpty ? 'Android' : fullModel);
+        return LocalDeviceInfo(
+          platform: 'Android',
+          model: fullModel.isNotEmpty ? fullModel : display,
+          displayName: display,
+        );
       }
       if (Platform.isIOS) {
         final info = await plugin.iosInfo;
-        final display = info.name.isNotEmpty ? info.name : (info.utsname.machine.isNotEmpty ? info.utsname.machine : 'iPhone');
-        return LocalDeviceInfo(platform: 'iOS', model: display, displayName: display);
+        final machine = info.utsname.machine.trim();
+        final display = info.name.trim().isNotEmpty ? info.name.trim() : (machine.isNotEmpty ? machine : 'iPhone');
+        return LocalDeviceInfo(platform: 'iOS', model: machine.isNotEmpty ? machine : display, displayName: display);
       }
     } catch (_) {
       // Платформенный плагин может не сработать в редких случаях (эмулятор без

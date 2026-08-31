@@ -60,7 +60,7 @@ public sealed class TimerSchedulerService : IDisposable
         }
     }
 
-    public ScheduledTimer Create(ScheduledAction action, DateTime scheduledAtUtc, string createdByClientId)
+    public ScheduledTimer Create(ScheduledAction action, DateTime scheduledAtUtc, string createdByClientId, string? clientIp = null)
     {
         var timer = new ScheduledTimer(
             TimerId: Guid.NewGuid().ToString(),
@@ -74,14 +74,14 @@ public sealed class TimerSchedulerService : IDisposable
         Arm(timer.TimerId, scheduledAtUtc - DateTime.UtcNow);
 
         var when = scheduledAtUtc.ToLocalTime().ToString("dd.MM HH:mm");
-        _taskLog?.Add("timerCreated", $"Запланирован таймер: {ActionLabel(action)} в {when}", createdByClientId);
+        _taskLog?.Add("timerCreated", $"Запланирован таймер: {ActionLabel(action)} в {when}", createdByClientId, clientIp: clientIp);
 
         return timer;
     }
 
     public IReadOnlyList<ScheduledTimer> ListAll() => _repository.ListAll();
 
-    public ScheduledTimer? Cancel(string timerId)
+    public ScheduledTimer? Cancel(string timerId, string? clientIp = null)
     {
         var timer = _repository.Find(timerId);
         if (timer is null || timer.Status != TimerStatus.Pending) return timer;
@@ -89,11 +89,11 @@ public sealed class TimerSchedulerService : IDisposable
         Disarm(timerId);
         _repository.UpdateStatus(timerId, TimerStatus.Cancelled);
         _ = _events.PublishAsync("timerCancelled", new { timerId });
-        _taskLog?.Add("timerCancelled", $"Отменён таймер: {ActionLabel(timer.Action)}");
+        _taskLog?.Add("timerCancelled", $"Отменён таймер: {ActionLabel(timer.Action)}", clientIp: clientIp);
         return timer with { Status = TimerStatus.Cancelled };
     }
 
-    public ScheduledTimer? Reschedule(string timerId, DateTime newScheduledAtUtc)
+    public ScheduledTimer? Reschedule(string timerId, DateTime newScheduledAtUtc, string? clientIp = null)
     {
         var timer = _repository.Find(timerId);
         if (timer is null || timer.Status != TimerStatus.Pending) return timer;
@@ -103,17 +103,17 @@ public sealed class TimerSchedulerService : IDisposable
         Arm(timerId, newScheduledAtUtc - DateTime.UtcNow);
 
         var when = newScheduledAtUtc.ToLocalTime().ToString("dd.MM HH:mm");
-        _taskLog?.Add("timerUpdated", $"Перенесён таймер: {ActionLabel(timer.Action)} на {when}");
+        _taskLog?.Add("timerUpdated", $"Перенесён таймер: {ActionLabel(timer.Action)} на {when}", clientIp: clientIp);
 
         return timer with { ScheduledAtUtc = newScheduledAtUtc, Status = TimerStatus.Pending };
     }
 
-    public ScheduledTimer? Snooze(string timerId, int minutes)
+    public ScheduledTimer? Snooze(string timerId, int minutes, string? clientIp = null)
     {
         var timer = _repository.Find(timerId);
         if (timer is null || timer.Status != TimerStatus.Pending) return timer;
 
-        return Reschedule(timerId, timer.ScheduledAtUtc + TimeSpan.FromMinutes(minutes));
+        return Reschedule(timerId, timer.ScheduledAtUtc + TimeSpan.FromMinutes(minutes), clientIp);
     }
 
     private void Arm(string timerId, TimeSpan delay)

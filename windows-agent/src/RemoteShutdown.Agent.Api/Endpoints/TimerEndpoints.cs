@@ -21,7 +21,7 @@ public static class TimerEndpoints
                 return Results.Json(ApiResponse.Fail(ctx.GetRequestId(), ErrorCodes.InternalError, "Provide delaySeconds or scheduledAtUtc."), statusCode: 400);
 
             var device = (PairedDevice)ctx.Items["Device"]!;
-            var timer = scheduler.Create(action, scheduledAtUtc.Value, device.ClientId);
+            var timer = scheduler.Create(action, scheduledAtUtc.Value, device.ClientId, ClientIp(ctx));
             return Results.Ok(ApiResponse.Ok(ctx.GetRequestId(), new { timerId = timer.TimerId, scheduledAtUtc = timer.ScheduledAtUtc }));
         });
 
@@ -40,11 +40,12 @@ public static class TimerEndpoints
         app.MapPatch("/timers/{id}", (string id, PatchTimerRequest request, HttpContext ctx, TimerSchedulerService scheduler) =>
         {
             var requestId = ctx.GetRequestId();
+            var clientIp = ClientIp(ctx);
             var updated = request.Action.ToLowerInvariant() switch
             {
-                "cancel" => scheduler.Cancel(id),
-                "reschedule" when request.ScheduledAtUtc is { } at => scheduler.Reschedule(id, at),
-                "snooze" when request.Minutes is { } minutes => scheduler.Snooze(id, minutes),
+                "cancel" => scheduler.Cancel(id, clientIp),
+                "reschedule" when request.ScheduledAtUtc is { } at => scheduler.Reschedule(id, at, clientIp),
+                "snooze" when request.Minutes is { } minutes => scheduler.Snooze(id, minutes, clientIp),
                 _ => null,
             };
 
@@ -59,4 +60,8 @@ public static class TimerEndpoints
             }));
         });
     }
+
+    /// <summary>IP, с которого пришёл запрос — показывается в журнале (docs/roadmap.md),
+    /// тот же приём, что и в CommandEndpoints.</summary>
+    private static string? ClientIp(HttpContext ctx) => ctx.Connection.RemoteIpAddress?.ToString();
 }

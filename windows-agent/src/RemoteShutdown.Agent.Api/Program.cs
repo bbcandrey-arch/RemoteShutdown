@@ -20,16 +20,15 @@ const int DefaultPort = 54321;
 var db = new AgentDatabase();
 db.EnsureCreated();
 var settingsStore = new SettingsStore(db);
+
+// Порт/тестовый режим/имя ПК/PIN по умолчанию для незнакомой БД — см. AgentDefaults
+// (вынесено туда, а не оставлено тут, чтобы это было покрыто юнит-тестом на временной
+// БД, не трогая реальный agent.db).
+var defaultsResult = AgentDefaults.Apply(settingsStore);
+if (defaultsResult.GeneratedPin is { } generatedPin)
+    Console.WriteLine($"Первый запуск: сгенерирован PIN для сопряжения — {generatedPin} (посмотреть снова можно в настройках трея, кнопка «Показать»).");
+
 var port = int.TryParse(settingsStore.Get(SettingsStore.Keys.Port), out var configuredPort) ? configuredPort : DefaultPort;
-if (settingsStore.Get(SettingsStore.Keys.Port) is null)
-    settingsStore.Set(SettingsStore.Keys.Port, DefaultPort.ToString());
-// Заглушка опасных действий включена по умолчанию для незнакомой БД — см. docs/security.md.
-if (settingsStore.Get(SettingsStore.Keys.TestMode) is null)
-    settingsStore.Set(SettingsStore.Keys.TestMode, "true");
-// Имя ПК по умолчанию — реальное сетевое имя машины; пользователь может переименовать
-// в SettingsForm ("Общие"), см. docs/roadmap.md.
-if (settingsStore.Get(SettingsStore.Keys.DeviceName) is null)
-    settingsStore.Set(SettingsStore.Keys.DeviceName, Environment.MachineName);
 
 builder.WebHost.ConfigureKestrel(options =>
 {
