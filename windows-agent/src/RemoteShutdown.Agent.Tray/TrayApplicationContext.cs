@@ -27,6 +27,7 @@ public sealed class TrayApplicationContext : ApplicationContext
     private readonly MediaControlService _media = new();
     private readonly RemoteInputService _input = new();
     private readonly SessionRelayClient _relayClient;
+    private readonly System.Windows.Forms.Timer _singleInstanceWatcher;
     private int _lastSeenTaskLogId;
     private SettingsForm? _settingsForm;
 
@@ -72,6 +73,11 @@ public sealed class TrayApplicationContext : ApplicationContext
         // Подключение к Service по именованному каналу — сам переподключается, если
         // Service ещё не поднялась или канал порвался (см. SessionRelayClient).
         _relayClient = new SessionRelayClient(HandleRelayRequestAsync);
+
+        // Повторный запуск Tray (ярлык нажали ещё раз) не создаёт вторую копию — та
+        // просто просит эту, уже работающую, показать настройки и сама сразу выходит
+        // (см. SingleInstanceGuard, Program.cs). Слушаем этот сигнал здесь.
+        _singleInstanceWatcher = SingleInstanceGuard.WatchForSignal(ShowSettings);
     }
 
     /// <summary>Выполняет то, что Service (Session 0) сама сделать не может —
@@ -176,6 +182,7 @@ public sealed class TrayApplicationContext : ApplicationContext
     private void ExitApplication()
     {
         _taskLogPoller.Stop();
+        _singleInstanceWatcher.Stop();
         _notifyIcon.Visible = false;
         _relayClient.Dispose();
         Application.Exit();
