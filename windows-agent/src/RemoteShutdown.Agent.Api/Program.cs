@@ -3,6 +3,7 @@ using RemoteShutdown.Agent.Api.Endpoints;
 using RemoteShutdown.Agent.Api.Events;
 using RemoteShutdown.Agent.Api.Middleware;
 using RemoteShutdown.Agent.Core.Events;
+using RemoteShutdown.Agent.Core.Input;
 using RemoteShutdown.Agent.Core.Media;
 using RemoteShutdown.Agent.Core.Metrics;
 using RemoteShutdown.Agent.Core.Pairing;
@@ -48,6 +49,7 @@ builder.Services.AddSingleton<NonceCache>();
 builder.Services.AddSingleton(sp => new PowerActionsService(sp.GetRequiredService<SettingsStore>()));
 builder.Services.AddSingleton<VolumeControlService>();
 builder.Services.AddSingleton<MediaControlService>();
+builder.Services.AddSingleton<RemoteInputService>();
 builder.Services.AddSingleton<MetricsCollector>();
 builder.Services.AddSingleton<TimerRepository>();
 builder.Services.AddSingleton<TaskLogStore>();
@@ -63,6 +65,7 @@ app.UseMiddleware<HmacAuthMiddleware>();
 
 app.MapPairEndpoints();
 app.MapCommandEndpoints();
+app.MapInputEndpoints();
 app.MapTimerEndpoints();
 app.MapStatusEndpoints();
 

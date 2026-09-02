@@ -195,6 +195,13 @@ class DashboardController extends StateNotifier<DashboardState> {
                 clientId: state.profile!.clientId,
                 sharedSecret: _sharedSecret!,
               );
+            case ScheduleShutdownAtAction(:final scheduledAtUtc):
+              await _apiClient!.postSigned(
+                '/timers',
+                {'action': 'shutdown', 'scheduledAtUtc': scheduledAtUtc.toIso8601String()},
+                clientId: state.profile!.clientId,
+                sharedSecret: _sharedSecret!,
+              );
             case CancelTimerAction(:final timerId):
               await _apiClient!.patchSigned(
                 '/timers/$timerId',
@@ -267,6 +274,31 @@ class DashboardController extends StateNotifier<DashboardState> {
     } catch (_) {
       await _enqueue(ScheduleShutdownAction(minutes),
           'Нет связи с ПК — выключение через $minutes мин отправится, когда связь восстановится');
+    }
+  }
+
+  /// Как [scheduleShutdownIn], но на конкретный момент времени (кнопка "Своё время") —
+  /// [localDateTime] уже разрешён вызывающей стороной до конкретной даты/времени (если
+  /// выбранное время сегодня уже прошло — на завтра, см. _pickCustomTime в UI).
+  Future<void> scheduleShutdownAt(DateTime localDateTime) async {
+    if (_apiClient == null || _sharedSecret == null || state.profile == null) return;
+    final utc = localDateTime.toUtc();
+    try {
+      await _apiClient!.postSigned(
+        '/timers',
+        {'action': 'shutdown', 'scheduledAtUtc': utc.toIso8601String()},
+        clientId: state.profile!.clientId,
+        sharedSecret: _sharedSecret!,
+      );
+      state = state.copyWith(
+        lastActionMessage:
+            'Выключение запланировано на ${localDateTime.hour.toString().padLeft(2, '0')}:${localDateTime.minute.toString().padLeft(2, '0')}',
+      );
+      await refresh();
+    } on ApiException catch (e) {
+      await _handleApiException(e);
+    } catch (_) {
+      await _enqueue(ScheduleShutdownAtAction(utc), 'Нет связи с ПК — выключение отправится, когда связь восстановится');
     }
   }
 

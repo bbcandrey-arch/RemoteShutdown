@@ -14,6 +14,7 @@ sealed class PendingAction {
   static PendingAction fromJson(Map<String, dynamic> json) {
     return switch (json['type'] as String) {
       'scheduleShutdown' => ScheduleShutdownAction(json['minutes'] as int),
+      'scheduleShutdownAt' => ScheduleShutdownAtAction(DateTime.parse(json['scheduledAtUtc'] as String)),
       'cancelTimer' => CancelTimerAction(json['timerId'] as String),
       'snoozeTimer' => SnoozeTimerAction(json['timerId'] as String, json['minutes'] as int),
       final other => throw FormatException('Неизвестный тип отложенного действия: $other'),
@@ -27,6 +28,17 @@ class ScheduleShutdownAction extends PendingAction {
 
   @override
   Map<String, dynamic> toJson() => {'type': 'scheduleShutdown', 'minutes': minutes};
+}
+
+/// Выключение на конкретное время (кнопка "Своё время" на Dashboard), в отличие от
+/// [ScheduleShutdownAction] (интервал от текущего момента) — тут важна именно дата/время,
+/// поэтому храним готовый UTC-момент, а не пересчитываем его заново при повторной отправке.
+class ScheduleShutdownAtAction extends PendingAction {
+  final DateTime scheduledAtUtc;
+  const ScheduleShutdownAtAction(this.scheduledAtUtc);
+
+  @override
+  Map<String, dynamic> toJson() => {'type': 'scheduleShutdownAt', 'scheduledAtUtc': scheduledAtUtc.toIso8601String()};
 }
 
 class CancelTimerAction extends PendingAction {

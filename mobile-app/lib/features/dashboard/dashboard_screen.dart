@@ -5,6 +5,7 @@ import '../../core/app_info.dart';
 import '../../models/timer_task.dart';
 import '../../theme/app_theme.dart';
 import '../pc_list/pc_list_screen.dart';
+import '../touchpad/touchpad_screen.dart';
 import 'dashboard_controller.dart';
 
 /// Главный экран: статус ПК, быстрые команды, пресеты отложенного выключения и список
@@ -89,6 +90,21 @@ class DashboardScreen extends ConsumerWidget {
             _ActiveTimersList(timers: state.timers, controller: controller),
           ],
         ),
+      ),
+      // Переключение на отдельный экран тачпада (курсор мыши + клавиатура ПК) — второй
+      // пункт меню внизу, а не ещё одна иконка в AppBar, потому что это не действие, а
+      // целый отдельный режим экрана (см. TouchpadScreen).
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: 0,
+        onDestinationSelected: (index) {
+          if (index == 1) {
+            Navigator.of(context).push(MaterialPageRoute(builder: (_) => TouchpadScreen(clientId: clientId)));
+          }
+        },
+        destinations: const [
+          NavigationDestination(icon: Icon(Icons.home), label: 'Управление'),
+          NavigationDestination(icon: Icon(Icons.touch_app_outlined), selectedIcon: Icon(Icons.touch_app), label: 'Тачпад'),
+        ],
       ),
     );
   }
@@ -319,9 +335,10 @@ class _QuickCommands extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 10),
-        Wrap(
+        // 2 колонки одинаковой ширины (не Wrap — там ширина кнопки зависит от длины
+        // подписи, и "Гибернация" получалась заметно шире "Сна", ряды не выравнивались).
+        _TwoColumnGrid(
           spacing: 8,
-          runSpacing: 8,
           children: [
             _SmallTonalButton(
               icon: Icons.restart_alt,
@@ -372,13 +389,41 @@ class _SmallTonalButton extends StatelessWidget {
     return FilledButton.tonalIcon(
       onPressed: onPressed,
       icon: Icon(icon, size: 16),
-      label: Text(label),
+      label: Text(label, overflow: TextOverflow.ellipsis),
       style: FilledButton.styleFrom(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         textStyle: Theme.of(context).textTheme.bodySmall,
         visualDensity: VisualDensity.compact,
+        alignment: Alignment.centerLeft,
       ),
     );
+  }
+}
+
+/// Раскладывает кнопки по 2 в ряд одинаковой ширины (ячейка = половина ширины
+/// родителя, независимо от длины подписи внутри) — для Wrap ширина каждой кнопки
+/// зависела от её текста, и ряды визуально не выравнивались (см. вызов в _QuickCommands).
+class _TwoColumnGrid extends StatelessWidget {
+  final List<Widget> children;
+  final double spacing;
+  const _TwoColumnGrid({required this.children, this.spacing = 8});
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = <Widget>[];
+    for (var i = 0; i < children.length; i += 2) {
+      final hasSecond = i + 1 < children.length;
+      if (rows.isNotEmpty) rows.add(SizedBox(height: spacing));
+      rows.add(Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(child: children[i]),
+          SizedBox(width: spacing),
+          Expanded(child: hasSecond ? children[i + 1] : const SizedBox.shrink()),
+        ],
+      ));
+    }
+    return Column(children: rows);
   }
 }
 
@@ -415,12 +460,18 @@ class _QuickShutdownPresets extends StatelessWidget {
         const SizedBox(height: 8),
         Wrap(
           spacing: 8,
-          children: _smallPresetsMinutes
-              .map((minutes) => ActionChip(
-                    label: Text(_hoursLabel(minutes)),
-                    onPressed: () => controller.scheduleShutdownIn(minutes),
-                  ))
-              .toList(),
+          children: [
+            for (final minutes in _smallPresetsMinutes)
+              ActionChip(
+                label: Text(_hoursLabel(minutes)),
+                onPressed: () => controller.scheduleShutdownIn(minutes),
+              ),
+            ActionChip(
+              avatar: const Icon(Icons.schedule, size: 18),
+              label: const Text('Своё время'),
+              onPressed: () => _pickCustomTime(context, controller),
+            ),
+          ],
         ),
       ],
     );
@@ -430,6 +481,56 @@ class _QuickShutdownPresets extends StatelessWidget {
     final hours = minutes / 60;
     final text = hours == hours.roundToDouble() ? hours.toStringAsFixed(0) : hours.toStringAsFixed(1);
     return '$text ч';
+  }
+
+  /// Выключение на конкретное время (не интервал от "сейчас") — если выбранное время
+  /// сегодня уже прошло, планируем на завтра и явно говорим об этом в подтверждении,
+  /// чтобы не запланировать выключение "уже прошедшим" временем по ошибке.
+  Future<void> _pickCustomTime(BuildContext context, DashboardController controller) async {
+    final now = TimeOfDay.now();
+    final picked = await showTimePicker(context: context, initialTime: now);
+    if (picked == null) return;
+
+    var scheduled = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day, picked.hour, picked.minute);
+    final isTomorrow = !scheduled.isAfter(DateTime.now());
+    if (isTomorrow) scheduled = scheduled.add(const Duration(days: 1));
+
+    if (!context.mounted) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Подтверждение'),
+        content: Text(
+          isTomorrow
+              ? 'Выключить ПК завтра в ${picked.format(context)}?'
+              : 'Выключить ПК сегодня в ${picked.format(context)}?',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Отмена')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Запланировать')),
+        ],
+      ),
+    );
+    if (confirmed == true) controller.scheduleShutdownAt(scheduled);
+  }
+}
+
+/// Кнопки громкости/медиа сделаны заметно крупнее обычных IconButton (48x48 по
+/// умолчанию) — их часто нажимают не глядя, на ходу, и мелкая цель тут не по месту.
+class _BigIconButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback? onPressed;
+  final bool filled;
+  const _BigIconButton({required this.icon, required this.onPressed, this.filled = false});
+
+  static const _size = 64.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = IconButton.styleFrom(minimumSize: const Size(_size, _size));
+    return filled
+        ? IconButton.filled(icon: Icon(icon, size: 28), onPressed: onPressed, style: style)
+        : IconButton.filledTonal(icon: Icon(icon, size: 28), onPressed: onPressed, style: style);
   }
 }
 
@@ -442,9 +543,9 @@ class _VolumeControls extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
-        IconButton.filledTonal(icon: const Icon(Icons.volume_down), onPressed: () => controller.adjustVolume('down')),
-        IconButton.filledTonal(icon: const Icon(Icons.volume_up), onPressed: () => controller.adjustVolume('up')),
-        IconButton.filledTonal(icon: const Icon(Icons.volume_off), onPressed: () => controller.adjustVolume('mute')),
+        _BigIconButton(icon: Icons.volume_down, onPressed: () => controller.adjustVolume('down')),
+        _BigIconButton(icon: Icons.volume_up, onPressed: () => controller.adjustVolume('up')),
+        _BigIconButton(icon: Icons.volume_off, onPressed: () => controller.adjustVolume('mute')),
       ],
     );
   }
@@ -463,9 +564,9 @@ class _MediaControls extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
-        IconButton.filledTonal(icon: const Icon(Icons.skip_previous), onPressed: controller.mediaPrevious),
-        IconButton.filled(icon: const Icon(Icons.play_arrow), onPressed: controller.mediaPlayPause),
-        IconButton.filledTonal(icon: const Icon(Icons.skip_next), onPressed: controller.mediaNext),
+        _BigIconButton(icon: Icons.skip_previous, onPressed: controller.mediaPrevious),
+        _BigIconButton(icon: Icons.play_arrow, onPressed: controller.mediaPlayPause, filled: true),
+        _BigIconButton(icon: Icons.skip_next, onPressed: controller.mediaNext),
       ],
     );
   }
