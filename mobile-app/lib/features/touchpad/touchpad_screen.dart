@@ -50,6 +50,11 @@ class _TouchpadScreenState extends ConsumerState<TouchpadScreen> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    // ВАЖНО: ref.watch (не read) — держит autoDispose-провайдер живым, пока этот
+    // экран в дереве виджетов. read() не подписывается ни на что, и без единого
+    // подписчика autoDispose уничтожал контроллер сразу после создания, ещё до того,
+    // как его асинхронный _init() успевал завершиться (см. Timer._flush() ниже).
+    ref.watch(touchpadControllerProvider(widget.clientId));
     final controller = ref.read(touchpadControllerProvider(widget.clientId).notifier);
 
     return Scaffold(

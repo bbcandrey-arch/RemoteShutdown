@@ -414,13 +414,18 @@ class _TwoColumnGrid extends StatelessWidget {
     for (var i = 0; i < children.length; i += 2) {
       final hasSecond = i + 1 < children.length;
       if (rows.isNotEmpty) rows.add(SizedBox(height: spacing));
-      rows.add(Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded(child: children[i]),
-          SizedBox(width: spacing),
-          Expanded(child: hasSecond ? children[i + 1] : const SizedBox.shrink()),
-        ],
+      // IntrinsicHeight — иначе Row с crossAxisAlignment.stretch внутри ListView
+      // (неограниченная по высоте ось) пытается растянуть кнопки на бесконечную
+      // высоту и падает с "RenderBox was not laid out" (поймано на эмуляторе).
+      rows.add(IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(child: children[i]),
+            SizedBox(width: spacing),
+            Expanded(child: hasSecond ? children[i + 1] : const SizedBox.shrink()),
+          ],
+        ),
       ));
     }
     return Column(children: rows);

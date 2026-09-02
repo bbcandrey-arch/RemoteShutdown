@@ -40,6 +40,10 @@ class TouchpadController extends StateNotifier<TouchpadState> {
   Future<void> _init() async {
     final profile = await _profileStore.find(clientId);
     final secret = await _secureStorage.readSharedSecret(clientId);
+    // На всякий случай (даже с ref.watch в TouchpadScreen, держащим autoDispose живым) —
+    // экран мог успеть закрыться, пока эти два await ждали ответа; без этой проверки
+    // `state = ...` ниже бросает "used after dispose".
+    if (!mounted) return;
     if (profile == null || secret == null) {
       state = const TouchpadState(errorMessage: 'Нет сопряжённого ПК.');
       return;
