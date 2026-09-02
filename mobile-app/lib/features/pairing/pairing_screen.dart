@@ -22,7 +22,7 @@ class PairingScreen extends ConsumerStatefulWidget {
 
 class _PairingScreenState extends ConsumerState<PairingScreen> {
   final _hostController = TextEditingController();
-  final _portController = TextEditingController(text: '54321');
+  final _portController = TextEditingController(text: '55765');
   final _pinController = TextEditingController();
 
   /// PIN, пришедший вместе с host+port из QR-кода (если агент знает его в открытом виде,
@@ -86,7 +86,7 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
 
   void _submitConnect() {
     final host = _hostController.text.trim();
-    final port = int.tryParse(_portController.text.trim()) ?? 54321;
+    final port = int.tryParse(_portController.text.trim()) ?? 55765;
     if (host.isEmpty) return;
     ref.read(pairingControllerProvider.notifier).startPairing(
           host: host,

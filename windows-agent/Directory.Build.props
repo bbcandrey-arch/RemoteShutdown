@@ -6,7 +6,7 @@
     в UI трея. Один Directory.Build.props вместо дублирования в каждом .csproj.
   -->
   <PropertyGroup>
-    <Version>1.1.0</Version>
+    <Version>2.0.0</Version>
     <Authors>vol.and</Authors>
     <Company>vol.and</Company>
     <Product>Remote Shutdown Agent</Product>

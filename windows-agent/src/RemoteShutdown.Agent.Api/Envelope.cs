@@ -34,4 +34,8 @@ public static class ErrorCodes
     public const string SessionNotFound = "SESSION_NOT_FOUND";
     public const string SessionExpired = "SESSION_EXPIRED";
     public const string InternalError = "INTERNAL_ERROR";
+    // Команда требует активной интерактивной сессии на ПК (громкость/медиа/блокировка/
+    // тачпад) — Service поднялась, но в неё ещё никто не вошёл, либо Tray не подключён
+    // к relay. См. RemoteShutdown.Agent.Core.Ipc.SessionRelayServer.
+    public const string NoActiveSession = RemoteShutdown.Agent.Core.Ipc.RelayErrorCodes.NoActiveSession;
 }

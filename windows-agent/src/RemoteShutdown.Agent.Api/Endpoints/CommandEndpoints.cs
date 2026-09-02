@@ -1,8 +1,7 @@
-using RemoteShutdown.Agent.Core.Media;
+using RemoteShutdown.Agent.Core.Ipc;
 using RemoteShutdown.Agent.Core.Power;
 using RemoteShutdown.Agent.Core.Security;
 using RemoteShutdown.Agent.Core.Storage;
-using RemoteShutdown.Agent.Core.Volume;
 
 namespace RemoteShutdown.Agent.Api.Endpoints;
 
@@ -41,31 +40,47 @@ public static class CommandEndpoints
             }
         });
 
-        app.MapPost("/commands/lock", (HttpContext ctx, PowerActionsService power, TaskLogStore taskLog) =>
-            RunPowerAction(ctx, power, taskLog, PowerAction.Lock, 0));
-
-        app.MapPost("/commands/volume", (VolumeRequest request, HttpContext ctx, VolumeControlService volume) =>
+        // Lock/Volume/Media физически требуют интерактивного рабочего стола — Service
+        // (Session 0, может работать без залогиненного пользователя) сам их выполнить не
+        // может и просит Tray сделать это через SessionRelayServer. См. docs/roadmap.md,
+        // "Windows Service", и RemoteShutdown.Agent.Core.Ipc.
+        app.MapPost("/commands/lock", async (HttpContext ctx, SessionRelayServer relay) =>
         {
-            if (!Enum.TryParse<VolumeAction>(request.Action, ignoreCase: true, out var action))
-                return Results.Json(ApiResponse.Fail(ctx.GetRequestId(), ErrorCodes.InternalError, $"Unknown volume action '{request.Action}'."), statusCode: 400);
+            var response = await relay.SendAsync(RelayRequest.Create(RelayKinds.Lock));
+            return RelayResult(ctx, response);
+        });
 
+        app.MapPost("/commands/volume", async (VolumeRequest request, HttpContext ctx, SessionRelayServer relay) =>
+        {
             // Громкость в журнал/уведомления не пишем — слишком "шумное" событие для
             // журнала задач (пользователь может нажать её десяток раз подряд).
-            volume.Execute(action);
-            var state = volume.GetState();
-            return Results.Ok(ApiResponse.Ok(ctx.GetRequestId(), new { level = state.Level, muted = state.Muted }));
+            var response = await relay.SendAsync(RelayRequest.Create(RelayKinds.Volume, new() { ["action"] = request.Action }));
+            return RelayResult(ctx, response);
         });
 
-        app.MapPost("/commands/media", (MediaRequest request, HttpContext ctx, MediaControlService media) =>
+        app.MapPost("/commands/media", async (MediaRequest request, HttpContext ctx, SessionRelayServer relay) =>
         {
-            if (!Enum.TryParse<MediaAction>(request.Action, ignoreCase: true, out var action))
-                return Results.Json(ApiResponse.Fail(ctx.GetRequestId(), ErrorCodes.InternalError, $"Unknown media action '{request.Action}'."), statusCode: 400);
-
             // Как и громкость — не пишем в журнал задач, слишком частое/некритичное событие.
-            media.Execute(action);
-            return Results.Ok(ApiResponse.Ok(ctx.GetRequestId()));
+            var response = await relay.SendAsync(RelayRequest.Create(RelayKinds.Media, new() { ["action"] = request.Action }));
+            return RelayResult(ctx, response);
         });
     }
+
+    /// <summary>Единая обработка ответа relay — NoActiveSession отдаём отдельным кодом
+    /// ошибки (телефон может показать понятное "Никто не вошёл в систему на ПК"), любую
+    /// другую неудачу — как обычную internal error.</summary>
+    internal static IResult RelayResult(HttpContext ctx, RelayResponse response)
+    {
+        var requestId = ctx.GetRequestId();
+        if (response.Ok) return Results.Ok(ApiResponse.Ok(requestId));
+
+        var statusCode = response.Error == ErrorCodes.NoActiveSession ? 409 : 500;
+        return Results.Json(ApiResponse.Fail(requestId, response.Error ?? ErrorCodes.InternalError, ErrorMessage(response.Error)), statusCode: statusCode);
+    }
+
+    private static string ErrorMessage(string? code) => code == ErrorCodes.NoActiveSession
+        ? "На ПК никто не вошёл в систему — эта команда требует активной сессии."
+        : "Не удалось выполнить команду на ПК.";
 
     private static IResult RunPowerAction(HttpContext ctx, PowerActionsService power, TaskLogStore taskLog, PowerAction action, int delaySeconds)
     {

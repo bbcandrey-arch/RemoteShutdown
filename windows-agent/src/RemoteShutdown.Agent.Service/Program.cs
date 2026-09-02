@@ -1,12 +1,12 @@
-// Placeholder for Этап 7 of docs/architecture plan ("Windows Service"): this project will
-// eventually host RemoteShutdown.Agent.Api's Kestrel server inside a proper Windows Service
-// (Microsoft.Extensions.Hosting + UseWindowsService()) plus IPC to a tray-companion for
-// Lock/UI, so the agent can run before any user logs in (Session 0 isolation — see
-// PowerActionsService remarks).
+// Постоянно запущенный хост агента (docs/roadmap.md, "Windows Service") — стартует при
+// загрузке ОС от имени LocalSystem, ДО того как кто-либо вошёл в Windows, поэтому
+// команды выключения/перезагрузки/сна/гибернации работают всегда, пока ПК физически
+// включён. Действия, которым физически нужен рабочий стол (громкость, медиа,
+// блокировка, тачпад), эта же WebApplication просит выполнить Tray через
+// SessionRelayServer — см. AgentHost.cs и RemoteShutdown.Agent.Core.Ipc.
 //
-// For the MVP (Этап 1-6), run RemoteShutdown.Agent.Api directly instead:
-//   dotnet run --project src/RemoteShutdown.Agent.Api
-
-var builder = Host.CreateApplicationBuilder(args);
-var host = builder.Build();
-host.Run();
+// Тот же код (AgentHost.CreateApp) используется и в RemoteShutdown.Agent.Api.exe для
+// интерактивного dev-запуска (`dotnet run`) — builder.Host.UseWindowsService(...) внутри
+// ничего не делает, если процесс не был поднят диспетчером служб, поэтому этот же exe
+// одинаково работает и из консоли (например, "sc start" в консоли для отладки).
+RemoteShutdown.Agent.Api.AgentHost.CreateApp(args).Run();

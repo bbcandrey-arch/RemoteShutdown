@@ -5,8 +5,9 @@ internal static class Program
     /// <summary>
     /// Трей-приложение — единственная видимая часть агента для пользователя (docs/roadmap.md,
     /// "UX опасных команд и управление доступом"): иконка в трее + окно настроек (пейринг/QR,
-    /// сопряжённые устройства, тестовый режим, автозагрузка), плюс запуск/остановка
-    /// RemoteShutdown.Agent.Api.exe как дочернего процесса.
+    /// сопряжённые устройства, тестовый режим, автозагрузка), плюс мост в интерактивную
+    /// сессию (SessionRelayClient) для команд, которые не может выполнить сама
+    /// RemoteShutdown.Agent.Service — см. TrayApplicationContext.
     /// </summary>
     [STAThread]
     private static void Main(string[] args)
@@ -20,8 +21,7 @@ internal static class Program
             var db = new Core.Storage.AgentDatabase();
             db.EnsureCreated();
             var settingsStore = new Core.Storage.SettingsStore(db);
-            if (settingsStore.Get(Core.Storage.SettingsStore.Keys.TestMode) is null)
-                settingsStore.Set(Core.Storage.SettingsStore.Keys.TestMode, "true");
+            Core.Storage.AgentDefaults.Apply(settingsStore);
             Application.Run(new SettingsForm(db, settingsStore, hideInsteadOfClose: false));
             return;
         }

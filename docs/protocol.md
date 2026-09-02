@@ -4,7 +4,7 @@
 
 ## 1. Транспорт
 
-- Windows Agent поднимает Kestrel HTTPS-сервер на LAN, порт по умолчанию **54321** (настраивается).
+- Windows Agent поднимает Kestrel HTTPS-сервер на LAN, порт по умолчанию **55765** (настраивается).
 - Сертификат — самоподписанный, генерируется агентом при первом запуске (`%ProgramData%\RemoteShutdownAgent\cert.pfx`).
 - REST — для запрос/ответ команд. WebSocket `wss://<host>:<port>/events` — для push-событий и live-метрик.
 - Discovery UDP-порт (broadcast fallback): **54322**.
@@ -12,7 +12,7 @@
 ## 2. Discovery
 
 ### mDNS
-Сервис публикуется как `_pcshutdown._tcp.local`, TXT-записи: `id=<deviceId>`, `port=54321`, `fp=<sha256 сертификата>`.
+Сервис публикуется как `_pcshutdown._tcp.local`, TXT-записи: `id=<deviceId>`, `port=55765`, `fp=<sha256 сертификата>`.
 
 ### UDP broadcast fallback
 Запрос на broadcast-адрес порта 54322:
@@ -25,7 +25,7 @@
   "type": "DISCOVER_RESPONSE",
   "deviceId": "guid",
   "hostname": "DESKTOP-ABC123",
-  "port": 54321,
+  "port": 55765,
   "fingerprint": "sha256:...",
   "version": "0.1.0"
 }

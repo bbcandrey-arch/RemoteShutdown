@@ -4,6 +4,13 @@
     <ProjectReference Include="..\RemoteShutdown.Agent.Core\RemoteShutdown.Agent.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- builder.Host.UseWindowsService(...) в AgentHost.cs — тот же билд одинаково
+         запускается и из консоли (этот exe, dev-цикл), и как Windows Service
+         (RemoteShutdown.Agent.Service.exe, см. docs/roadmap.md). -->
+    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="9.0.9" />
+  </ItemGroup>
+
   <PropertyGroup>
     <TargetFramework>net9.0-windows</TargetFramework>
     <Nullable>enable</Nullable>

@@ -28,8 +28,15 @@ class DashboardScreen extends ConsumerWidget {
 
     // Сопряжение разорвано (вручную или ПК отозвал доступ этому устройству, см.
     // DashboardController.unpair()/_handleApiException) — уходим на экран сопряжения.
+    // errorMessage — раньше нигде не показывался (только хранился в состоянии); теперь
+    // нужен и для NO_ACTIVE_SESSION (Lock/Volume/Media/тачпад, когда на ПК никто не
+    // вошёл в систему — см. windows-agent SessionRelayServer), поэтому выводим снекбаром
+    // при каждом новом значении.
     ref.listen<DashboardState>(provider, (previous, next) {
       if (next.unpaired) onUnpaired();
+      if (next.errorMessage != null && next.errorMessage != previous?.errorMessage) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(next.errorMessage!)));
+      }
     });
 
     return Scaffold(

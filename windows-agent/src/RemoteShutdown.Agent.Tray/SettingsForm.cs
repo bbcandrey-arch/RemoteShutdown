@@ -205,7 +205,7 @@ public sealed class SettingsForm : Form
 
     private void RefreshPairingTab()
     {
-        var port = int.TryParse(_settings.Get(SettingsStore.Keys.Port), out var p) ? p : 54321;
+        var port = int.TryParse(_settings.Get(SettingsStore.Keys.Port), out var p) ? p : 55765;
         var interfaces = NetworkInfoService.GetAllIPv4Addresses();
         var preferredIp = _settings.Get(SettingsStore.Keys.PreferredIp);
 
@@ -580,7 +580,7 @@ public sealed class SettingsForm : Form
     private void RefreshGeneralTab()
     {
         _deviceNameTextBox.Text = _settings.Get(SettingsStore.Keys.DeviceName) ?? Environment.MachineName;
-        _portUpDown.Value = int.TryParse(_settings.Get(SettingsStore.Keys.Port), out var p) ? p : 54321;
+        _portUpDown.Value = int.TryParse(_settings.Get(SettingsStore.Keys.Port), out var p) ? p : 55765;
         _testModeCheckBox.Checked = _settings.Get(SettingsStore.Keys.TestMode) != "false";
         _autostartCheckBox.Checked = AutostartService.IsEnabled();
         RefreshFirewallStatus();

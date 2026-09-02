@@ -1,16 +1,32 @@
+using RemoteShutdown.Agent.Core.Input;
+using RemoteShutdown.Agent.Core.Ipc;
+using RemoteShutdown.Agent.Core.Media;
+using RemoteShutdown.Agent.Core.Power;
 using RemoteShutdown.Agent.Core.Storage;
+using RemoteShutdown.Agent.Core.Volume;
 
 namespace RemoteShutdown.Agent.Tray;
 
-/// <summary>Владеет иконкой в трее и жизненным циклом дочернего процесса агента.</summary>
+/// <summary>
+/// Владеет иконкой в трее и мостом в интерактивную сессию (SessionRelayClient) — сам
+/// HTTP-агент теперь постоянно живёт в RemoteShutdown.Agent.Service (Windows Service,
+/// см. docs/roadmap.md, "Windows Service"), Tray больше НЕ запускает и не останавливает
+/// его как дочерний процесс. Роль Tray — выполнять то, что физически требует рабочего
+/// стола (громкость, медиа, блокировка, тачпад), когда Service (Session 0) просит об
+/// этом через именованный канал.
+/// </summary>
 public sealed class TrayApplicationContext : ApplicationContext
 {
     private readonly NotifyIcon _notifyIcon;
-    private readonly AgentProcessManager _agentProcess = new();
     private readonly AgentDatabase _db;
     private readonly SettingsStore _settingsStore;
     private readonly TaskLogStore _taskLog;
     private readonly System.Windows.Forms.Timer _taskLogPoller;
+    private readonly PowerActionsService _power;
+    private readonly VolumeControlService _volume = new();
+    private readonly MediaControlService _media = new();
+    private readonly RemoteInputService _input = new();
+    private readonly SessionRelayClient _relayClient;
     private int _lastSeenTaskLogId;
     private SettingsForm? _settingsForm;
 
@@ -20,16 +36,16 @@ public sealed class TrayApplicationContext : ApplicationContext
         _db.EnsureCreated();
         _settingsStore = new SettingsStore(_db);
         _taskLog = new TaskLogStore(_db);
+        _power = new PowerActionsService(_settingsStore);
         // Единая точка дефолтов первого запуска (test_mode по умолчанию ВЫКЛЮЧЕН —
-        // см. AgentDefaults.cs) — раньше тут был отдельный дублирующий кусок, который
-        // на самом первом запуске (трей стартует раньше Api) успевал выставить
-        // test_mode="true" ДО того, как Api применит правильный дефолт "false".
+        // см. AgentDefaults.cs) — Service тоже его вызывает, идемпотентно; держим и
+        // здесь на случай, если Tray стартует раньше Service (гонка при входе в систему).
         AgentDefaults.Apply(_settingsStore);
 
         var menu = new ContextMenuStrip();
         menu.Items.Add("Настройки", null, (_, _) => ShowSettings());
         menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add("Перезапустить агент", null, (_, _) => RestartAgent());
+        menu.Items.Add("Перезапустить службу агента", null, (_, _) => RestartService());
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Выход", null, (_, _) => ExitApplication());
 
@@ -46,14 +62,73 @@ public sealed class TrayApplicationContext : ApplicationContext
         // таймеров прошлой сессии) — только о новых, прилетевших пока трей открыт.
         _lastSeenTaskLogId = _taskLog.GetMaxId();
 
-        // Поллинг вместо WebSocket/IPC: и трей, и Api читают одну и ту же SQLite-БД,
-        // отдельный канал связи между процессами не нужен — см. docs/roadmap.md,
+        // Поллинг вместо WebSocket/IPC: и трей, и Service читают одну и ту же SQLite-БД,
+        // отдельный канал связи для журнала не нужен — см. docs/roadmap.md,
         // "Уведомления и журнал задач".
         _taskLogPoller = new System.Windows.Forms.Timer { Interval = 3000 };
         _taskLogPoller.Tick += (_, _) => PollTaskLog();
         _taskLogPoller.Start();
 
-        TryStartAgent();
+        // Подключение к Service по именованному каналу — сам переподключается, если
+        // Service ещё не поднялась или канал порвался (см. SessionRelayClient).
+        _relayClient = new SessionRelayClient(HandleRelayRequestAsync);
+    }
+
+    /// <summary>Выполняет то, что Service (Session 0) сама сделать не может —
+    /// см. RelayKinds. Вызывается из фонового потока SessionRelayClient.</summary>
+    private Task<RelayResponse> HandleRelayRequestAsync(RelayRequest request)
+    {
+        try
+        {
+            switch (request.Kind)
+            {
+                case RelayKinds.Lock:
+                    _power.Execute(PowerAction.Lock);
+                    break;
+
+                case RelayKinds.Volume:
+                    if (!Enum.TryParse<VolumeAction>(request.Params.GetValueOrDefault("action"), ignoreCase: true, out var volumeAction))
+                        return Task.FromResult(RelayResponse.Failure(request.Id, "Unknown volume action."));
+                    _volume.Execute(volumeAction);
+                    break;
+
+                case RelayKinds.Media:
+                    if (!Enum.TryParse<MediaAction>(request.Params.GetValueOrDefault("action"), ignoreCase: true, out var mediaAction))
+                        return Task.FromResult(RelayResponse.Failure(request.Id, "Unknown media action."));
+                    _media.Execute(mediaAction);
+                    break;
+
+                case RelayKinds.MouseMove:
+                    var dx = int.TryParse(request.Params.GetValueOrDefault("dx"), out var dxv) ? dxv : 0;
+                    var dy = int.TryParse(request.Params.GetValueOrDefault("dy"), out var dyv) ? dyv : 0;
+                    _input.MoveMouse(dx, dy);
+                    break;
+
+                case RelayKinds.MouseClick:
+                    if (!Enum.TryParse<MouseButton>(request.Params.GetValueOrDefault("button"), ignoreCase: true, out var button))
+                        return Task.FromResult(RelayResponse.Failure(request.Id, "Unknown mouse button."));
+                    _input.Click(button);
+                    break;
+
+                case RelayKinds.KeyboardText:
+                    _input.TypeText(request.Params.GetValueOrDefault("text") ?? "");
+                    break;
+
+                case RelayKinds.KeyboardKey:
+                    if (!Enum.TryParse<SpecialKey>(request.Params.GetValueOrDefault("key"), ignoreCase: true, out var key))
+                        return Task.FromResult(RelayResponse.Failure(request.Id, "Unknown key."));
+                    _input.SendSpecialKey(key);
+                    break;
+
+                default:
+                    return Task.FromResult(RelayResponse.Failure(request.Id, $"Unknown relay kind '{request.Kind}'."));
+            }
+            return Task.FromResult(RelayResponse.Success(request.Id));
+        }
+        catch (Exception ex)
+        {
+            return Task.FromResult(RelayResponse.Failure(request.Id, ex.Message));
+        }
     }
 
     private void PollTaskLog()
@@ -72,23 +147,11 @@ public sealed class TrayApplicationContext : ApplicationContext
         _settingsForm?.RefreshTaskLogIfVisible();
     }
 
-    private void TryStartAgent()
+    private void RestartService()
     {
-        var exePath = AgentProcessManager.FindAgentApiExecutable();
-        if (exePath is null)
-        {
-            _notifyIcon.ShowBalloonTip(5000, "Remote Shutdown Agent",
-                "Не найден RemoteShutdown.Agent.Api.exe рядом с решением — соберите проект (dotnet build) и перезапустите трей.",
-                ToolTipIcon.Warning);
-            return;
-        }
-        _agentProcess.Start(exePath);
-    }
-
-    private void RestartAgent()
-    {
-        _agentProcess.Stop();
-        TryStartAgent();
+        var (ok, message) = ServiceControlService.Restart();
+        if (!ok)
+            _notifyIcon.ShowBalloonTip(5000, "Remote Shutdown Agent", message, ToolTipIcon.Warning);
     }
 
     private void ShowSettings()
@@ -114,7 +177,7 @@ public sealed class TrayApplicationContext : ApplicationContext
     {
         _taskLogPoller.Stop();
         _notifyIcon.Visible = false;
-        _agentProcess.Stop();
+        _relayClient.Dispose();
         Application.Exit();
     }
 }

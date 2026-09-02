@@ -14,7 +14,7 @@ namespace RemoteShutdown.Agent.Core.Storage;
 [SupportedOSPlatform("windows")]
 public static class AgentDefaults
 {
-    public const int DefaultPort = 54321;
+    public const int DefaultPort = 55765;
 
     /// <param name="GeneratedPin">
     /// PIN, только что сгенерированный для этого первого запуска (см. Apply) — null,

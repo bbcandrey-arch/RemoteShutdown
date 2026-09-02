@@ -1,4 +1,4 @@
-using RemoteShutdown.Agent.Core.Input;
+using RemoteShutdown.Agent.Core.Ipc;
 
 namespace RemoteShutdown.Agent.Api.Endpoints;
 
@@ -6,6 +6,11 @@ namespace RemoteShutdown.Agent.Api.Endpoints;
 /// Тачпад с телефона (docs/roadmap.md) — перемещение курсора, клики, текст и спецклавиши.
 /// Как и громкость/медиа, в журнал задач не пишем — слишком частые и некритичные события,
 /// журнал моментально захлестнёт при активном использовании тачпада.
+///
+/// Мышь/клавиатура физически действуют на конкретный рабочий стол — Service (Session 0)
+/// не может их выполнить сам, только попросить Tray через SessionRelayServer (см.
+/// CommandEndpoints.RelayResult — та же обработка ответа, что и для громкости/медиа/
+/// блокировки).
 /// </summary>
 public static class InputEndpoints
 {
@@ -16,34 +21,29 @@ public static class InputEndpoints
 
     public static void MapInputEndpoints(this WebApplication app)
     {
-        app.MapPost("/input/mouse/move", (MouseMoveRequest request, HttpContext ctx, RemoteInputService input) =>
+        app.MapPost("/input/mouse/move", async (MouseMoveRequest request, HttpContext ctx, SessionRelayServer relay) =>
         {
-            input.MoveMouse(request.Dx, request.Dy);
-            return Results.Ok(ApiResponse.Ok(ctx.GetRequestId()));
+            var response = await relay.SendAsync(RelayRequest.Create(RelayKinds.MouseMove,
+                new() { ["dx"] = request.Dx.ToString(), ["dy"] = request.Dy.ToString() }));
+            return CommandEndpoints.RelayResult(ctx, response);
         });
 
-        app.MapPost("/input/mouse/click", (MouseClickRequest request, HttpContext ctx, RemoteInputService input) =>
+        app.MapPost("/input/mouse/click", async (MouseClickRequest request, HttpContext ctx, SessionRelayServer relay) =>
         {
-            if (!Enum.TryParse<MouseButton>(request.Button, ignoreCase: true, out var button))
-                return Results.Json(ApiResponse.Fail(ctx.GetRequestId(), ErrorCodes.InternalError, $"Unknown mouse button '{request.Button}'."), statusCode: 400);
-
-            input.Click(button);
-            return Results.Ok(ApiResponse.Ok(ctx.GetRequestId()));
+            var response = await relay.SendAsync(RelayRequest.Create(RelayKinds.MouseClick, new() { ["button"] = request.Button }));
+            return CommandEndpoints.RelayResult(ctx, response);
         });
 
-        app.MapPost("/input/keyboard/text", (KeyboardTextRequest request, HttpContext ctx, RemoteInputService input) =>
+        app.MapPost("/input/keyboard/text", async (KeyboardTextRequest request, HttpContext ctx, SessionRelayServer relay) =>
         {
-            input.TypeText(request.Text);
-            return Results.Ok(ApiResponse.Ok(ctx.GetRequestId()));
+            var response = await relay.SendAsync(RelayRequest.Create(RelayKinds.KeyboardText, new() { ["text"] = request.Text }));
+            return CommandEndpoints.RelayResult(ctx, response);
         });
 
-        app.MapPost("/input/keyboard/key", (KeyboardKeyRequest request, HttpContext ctx, RemoteInputService input) =>
+        app.MapPost("/input/keyboard/key", async (KeyboardKeyRequest request, HttpContext ctx, SessionRelayServer relay) =>
         {
-            if (!Enum.TryParse<SpecialKey>(request.Key, ignoreCase: true, out var key))
-                return Results.Json(ApiResponse.Fail(ctx.GetRequestId(), ErrorCodes.InternalError, $"Unknown key '{request.Key}'."), statusCode: 400);
-
-            input.SendSpecialKey(key);
-            return Results.Ok(ApiResponse.Ok(ctx.GetRequestId()));
+            var response = await relay.SendAsync(RelayRequest.Create(RelayKinds.KeyboardKey, new() { ["key"] = request.Key }));
+            return CommandEndpoints.RelayResult(ctx, response);
         });
     }
 }
