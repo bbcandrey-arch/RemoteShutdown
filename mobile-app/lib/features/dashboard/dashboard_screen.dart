@@ -50,7 +50,7 @@ class DashboardScreen extends ConsumerWidget {
           IconButton(
             icon: const Icon(Icons.devices_outlined),
             tooltip: 'Мои ПК',
-            onPressed: () => _openPcList(context),
+            onPressed: () => _openPcList(context, controller),
           ),
           PopupMenuButton<_MenuAction>(
             onSelected: (action) => switch (action) {
@@ -122,8 +122,16 @@ class DashboardScreen extends ConsumerWidget {
   /// Открывает список сопряжённых ПК — переключиться на другой или добавить новый
   /// (docs/roadmap.md, "несколько агентов"). Отдельный экран, а не диалог, — список
   /// может расти произвольно, плюс там же живёт отзыв/переименование.
-  void _openPcList(BuildContext context) {
-    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PcListScreen()));
+  ///
+  /// Этот Dashboard остаётся живым в стеке навигации под списком (обычный push, не
+  /// replace) — если там отвязали именно этот ПК, при возврате назад надо сразу
+  /// перепроверить состояние (controller.refresh() теперь сам обнаруживает пропавший
+  /// профиль, см. DashboardController), а не показывать протухший "ПК онлайн" из
+  /// кэша до следующего ручного обновления.
+  void _openPcList(BuildContext context, DashboardController controller) {
+    Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => const PcListScreen()))
+        .then((_) => controller.refresh());
   }
 
   /// Локальное переименование ПК (docs/roadmap.md, "настройка переименования ПК") —

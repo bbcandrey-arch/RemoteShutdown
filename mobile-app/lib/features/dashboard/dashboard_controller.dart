@@ -124,6 +124,17 @@ class DashboardController extends StateNotifier<DashboardState> {
 
   Future<void> refresh() async {
     if (_apiClient == null || _sharedSecret == null || state.profile == null) return;
+
+    // Профиль мог быть отвязан со стороны ("Мои ПК" → Отвязать), пока этот Dashboard
+    // оставался живым под ним в стеке навигации (просто Navigator.push, не replace) —
+    // без этой проверки контроллер продолжал бы стучаться на ПК со старым (уже
+    // забытым локально) секретом и показывать "ПК онлайн", как будто ничего не
+    // произошло. См. баг-репорт: отвязка из списка ПК не выкидывала на пейринг.
+    if (await _profileStore.find(clientId) == null) {
+      state = state.copyWith(loading: false, unpaired: true);
+      return;
+    }
+
     state = state.copyWith(loading: true, errorMessage: null);
 
     try {
