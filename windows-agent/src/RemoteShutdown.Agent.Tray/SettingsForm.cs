@@ -142,6 +142,13 @@ public sealed class SettingsForm : Form
         var page = new TabPage("Сопряжение") { AutoScroll = true };
         var layout = new TableLayoutPanel { ColumnCount = 1, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(16) };
 
+        // Первое, что видит человек в настройках, — эта вкладка (открывается по умолчанию),
+        // поэтому ссылка на инструкцию тут, а не только на отдельной вкладке "Помощь" в
+        // конце списка, до которой ещё нужно догадаться долистать.
+        var helpLink = new LinkLabel { AutoSize = true, Text = "Как это работает? (инструкция)", Margin = new Padding(0, 0, 0, 8) };
+        helpLink.LinkClicked += (_, _) => OpenUrl(UserGuideUrl);
+        layout.Controls.Add(helpLink);
+
         _qrPictureBox = new PictureBox { Width = 300, Height = 300, SizeMode = PictureBoxSizeMode.Zoom, BorderStyle = BorderStyle.FixedSingle };
         layout.Controls.Add(_qrPictureBox);
 
