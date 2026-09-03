@@ -81,7 +81,9 @@ public sealed class TimerSchedulerService : IDisposable
 
     public IReadOnlyList<ScheduledTimer> ListAll() => _repository.ListAll();
 
-    public ScheduledTimer? Cancel(string timerId, string? clientIp = null)
+    public ScheduledTimer? Cancel(string timerId, string? clientIp = null) => Cancel(timerId, clientIp, reasonSuffix: null);
+
+    private ScheduledTimer? Cancel(string timerId, string? clientIp, string? reasonSuffix)
     {
         var timer = _repository.Find(timerId);
         if (timer is null || timer.Status != TimerStatus.Pending) return timer;
@@ -89,8 +91,24 @@ public sealed class TimerSchedulerService : IDisposable
         Disarm(timerId);
         _repository.UpdateStatus(timerId, TimerStatus.Cancelled);
         _ = _events.PublishAsync("timerCancelled", new { timerId });
-        _taskLog?.Add("timerCancelled", $"Отменён таймер: {ActionLabel(timer.Action)}", clientIp: clientIp);
+        _taskLog?.Add("timerCancelled", $"Отменён таймер: {ActionLabel(timer.Action)}{reasonSuffix}", clientIp: clientIp);
         return timer with { Status = TimerStatus.Cancelled };
+    }
+
+    /// <summary>
+    /// Отменяет все ещё не сработавшие таймеры — вызывается, когда ПК прямо сейчас
+    /// по-настоящему выключается/перезагружается (ручной командой или другим таймером,
+    /// не в тестовом режиме-заглушке). Без этого случался баг: пользователь ставил
+    /// таймер, потом выключал ПК раньше срока вручную — таймер оставался Pending в БД;
+    /// на следующей загрузке RestoreFromStorage() видел его просроченным и тут же
+    /// выполнял, ПК неожиданно выключался сам через какое-то время после включения.
+    /// Раз питание меняется по-настоящему прямо сейчас, любой другой ещё не сработавший
+    /// таймер из "прошлой жизни" агента уже не имеет смысла.
+    /// </summary>
+    public void CancelAllPendingForRealPowerChange()
+    {
+        foreach (var timer in _repository.ListPending())
+            Cancel(timer.TimerId, clientIp: null, reasonSuffix: " (ПК выключается/перезагружается сейчас)");
     }
 
     public ScheduledTimer? Reschedule(string timerId, DateTime newScheduledAtUtc, string? clientIp = null)
@@ -144,6 +162,12 @@ public sealed class TimerSchedulerService : IDisposable
             _repository.UpdateStatus(timerId, TimerStatus.Fired);
             _ = _events.PublishAsync("timerFired", new { timerId, action = timer.Action.ToString() });
             _taskLog?.Add("timerFired", $"Сработал таймер: {ActionLabel(timer.Action)}");
+
+            // Не в тестовом режиме ПК прямо сейчас реально выключается/перезагружается —
+            // любые другие ещё не сработавшие таймеры отменяем, иначе воскреснут при
+            // следующей загрузке (см. CancelAllPendingForRealPowerChange).
+            if (!_powerActions.SimulateDangerousActions)
+                CancelAllPendingForRealPowerChange();
         }
         catch (Exception ex)
         {

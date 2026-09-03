@@ -36,6 +36,14 @@ public sealed class SettingsForm : Form
     private Label _firewallStatusLabel = null!;
 
     /// <summary>
+    /// TODO: заменить на настоящий адрес репозитория, когда он опубликован на GitHub —
+    /// см. docs/user-guide.md (та же ссылка используется и в мобильном приложении,
+    /// AppInfo.RepoUrl/HelpDocUrl).
+    /// </summary>
+    private const string RepoUrl = "https://github.com/USERNAME/remote_shutdown";
+    private const string UserGuideUrl = RepoUrl + "/blob/main/docs/user-guide.md";
+
+    /// <summary>
     /// Версия из Directory.Build.props (Version/Authors) — та же информация, что видна в
     /// свойствах exe в Проводнике (Подробно), но и прямо в UI, чтобы не искать. Читаем из
     /// FileVersionInfo (ProductVersion), а не AssemblyVersion — тот всегда дополняется до
@@ -79,6 +87,7 @@ public sealed class SettingsForm : Form
         _tabs.TabPages.Add(BuildDevicesTab());
         _tabs.TabPages.Add(BuildTaskLogTab());
         _tabs.TabPages.Add(BuildGeneralTab());
+        _tabs.TabPages.Add(BuildHelpTab());
         Controls.Add(_tabs);
 
         RefreshPairingTab();
@@ -191,9 +200,9 @@ public sealed class SettingsForm : Form
             Margin = new Padding(0, 8, 0, 0),
             Text = "PIN нужен один раз, при первом сопряжении телефона. Посмотреть его снова можно " +
                    "кнопкой «Показать» выше — но только если он был установлен через это окно. " +
-                   "Если PIN задавали раньше вручную (например, правкой БД), это окно про него не " +
-                   "знает — он всё ещё действует, просто здесь не отображается; установите новый, " +
-                   "если забыли старый.",
+                   "Если PIN был задан другим способом (например, в более старой версии " +
+                   "приложения), это окно про него не знает — он всё ещё действует, просто здесь " +
+                   "не отображается; установите новый, если забыли старый.",
         };
         layout.Controls.Add(note);
 
@@ -559,6 +568,84 @@ public sealed class SettingsForm : Form
 
         page.Controls.Add(layout);
         return page;
+    }
+
+    /// <summary>
+    /// Краткая справка прямо в приложении + ссылка на полную инструкцию на GitHub —
+    /// раньше единственная помощь была в комментариях кода, для пользователя (не
+    /// разработчика) этого недостаточно. См. docs/user-guide.md.
+    /// </summary>
+    private TabPage BuildHelpTab()
+    {
+        var page = new TabPage("Помощь");
+        var layout = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, Padding = new Padding(16), AutoScroll = true };
+
+        layout.Controls.Add(new Label
+        {
+            AutoSize = true,
+            Font = new System.Drawing.Font(Font, System.Drawing.FontStyle.Bold),
+            Text = "Как подключить телефон",
+            Margin = new Padding(0, 0, 0, 8),
+        });
+        layout.Controls.Add(new Label
+        {
+            AutoSize = true,
+            MaximumSize = new System.Drawing.Size(460, 0),
+            Margin = new Padding(0, 0, 0, 16),
+            Text = "1. Установите приложение на телефон (см. ссылку ниже).\n" +
+                   "2. В приложении — «Сканировать QR-код» и наведите камеру на QR-код на " +
+                   "вкладке «Сопряжение» этого окна.\n" +
+                   "3. Либо введите IP и порт этого ПК вручную и PIN оттуда же (кнопка «Показать»).\n" +
+                   "4. Телефон и ПК должны быть в одной Wi-Fi сети.",
+        });
+
+        layout.Controls.Add(new Label
+        {
+            AutoSize = true,
+            Font = new System.Drawing.Font(Font, System.Drawing.FontStyle.Bold),
+            Text = "Не получается подключиться",
+            Margin = new Padding(0, 0, 0, 8),
+        });
+        layout.Controls.Add(new Label
+        {
+            AutoSize = true,
+            MaximumSize = new System.Drawing.Size(460, 0),
+            Margin = new Padding(0, 0, 0, 16),
+            Text = "• Проверьте, что телефон и ПК в одной сети (не гостевой Wi-Fi).\n" +
+                   "• Нажмите «Добавить правило в брандмауэр» на вкладке «Общие».\n" +
+                   "• Убедитесь, что служба агента запущена (значок в трее).",
+        });
+
+        var guideLink = new LinkLabel { AutoSize = true, Text = "Полная инструкция на GitHub", Margin = new Padding(0, 0, 0, 4) };
+        guideLink.LinkClicked += (_, _) => OpenUrl(UserGuideUrl);
+        layout.Controls.Add(guideLink);
+
+        var repoLink = new LinkLabel { AutoSize = true, Text = "Репозиторий проекта / скачать приложения", Margin = new Padding(0, 0, 0, 16) };
+        repoLink.LinkClicked += (_, _) => OpenUrl(RepoUrl);
+        layout.Controls.Add(repoLink);
+
+        layout.Controls.Add(new Label
+        {
+            AutoSize = true,
+            ForeColor = System.Drawing.SystemColors.GrayText,
+            Text = $"Remote Shutdown Agent v{AppVersion} · vol.and",
+        });
+
+        page.Controls.Add(layout);
+        return page;
+    }
+
+    private static void OpenUrl(string url)
+    {
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true });
+        }
+        catch
+        {
+            // Нет браузера по умолчанию/что-то пошло не так — не критично, ссылка всё
+            // равно видна текстом в LinkLabel.
+        }
     }
 
     private void AddFirewallRule()

@@ -102,6 +102,41 @@ public class TimerSchedulerServiceTests : IDisposable
         Assert.Contains(entries, e => e.Kind == "timerCancelled");
     }
 
+    /// <summary>
+    /// Баг-репорт: пользователь ставил таймер, потом выключал ПК раньше срока вручную —
+    /// таймер оставался Pending; на следующей загрузке RestoreFromStorage() видел его
+    /// просроченным и тут же выполнял, ПК неожиданно выключался само по себе после
+    /// включения. CancelAllPendingForRealPowerChange (вызывается из CommandEndpoints при
+    /// реальном — не тестовом — Shutdown/Restart, и из Fire() для срабатывающих
+    /// таймеров) — это фикс: все ещё не сработавшие таймеры отменяются, когда питание
+    /// меняется по-настоящему прямо сейчас.
+    /// </summary>
+    [Fact]
+    public void CancelAllPendingForRealPowerChange_cancels_every_still_pending_timer()
+    {
+        using var scheduler = CreateScheduler();
+        var t1 = scheduler.Create(ScheduledAction.Shutdown, DateTime.UtcNow.AddMinutes(30), "client-1");
+        var t2 = scheduler.Create(ScheduledAction.Restart, DateTime.UtcNow.AddMinutes(45), "client-1");
+
+        scheduler.CancelAllPendingForRealPowerChange();
+
+        Assert.Equal(TimerStatus.Cancelled, _repository.Find(t1.TimerId)!.Status);
+        Assert.Equal(TimerStatus.Cancelled, _repository.Find(t2.TimerId)!.Status);
+        Assert.Empty(_repository.ListPending());
+    }
+
+    [Fact]
+    public void CancelAllPendingForRealPowerChange_leaves_already_fired_or_cancelled_timers_alone()
+    {
+        using var scheduler = CreateScheduler();
+        var fired = scheduler.Create(ScheduledAction.Shutdown, DateTime.UtcNow.AddMinutes(30), "client-1");
+        _repository.UpdateStatus(fired.TimerId, TimerStatus.Fired);
+
+        scheduler.CancelAllPendingForRealPowerChange();
+
+        Assert.Equal(TimerStatus.Fired, _repository.Find(fired.TimerId)!.Status);
+    }
+
     public void Dispose()
     {
         SqliteConnection.ClearAllPools();

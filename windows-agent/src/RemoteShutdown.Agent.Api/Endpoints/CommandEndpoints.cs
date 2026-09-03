@@ -2,6 +2,7 @@ using RemoteShutdown.Agent.Core.Ipc;
 using RemoteShutdown.Agent.Core.Power;
 using RemoteShutdown.Agent.Core.Security;
 using RemoteShutdown.Agent.Core.Storage;
+using RemoteShutdown.Agent.Core.Timers;
 
 namespace RemoteShutdown.Agent.Api.Endpoints;
 
@@ -13,14 +14,14 @@ public static class CommandEndpoints
 
     public static void MapCommandEndpoints(this WebApplication app)
     {
-        app.MapPost("/commands/shutdown", (DelayedActionRequest request, HttpContext ctx, PowerActionsService power, TaskLogStore taskLog) =>
-            RunPowerAction(ctx, power, taskLog, PowerAction.Shutdown, request.DelaySeconds));
+        app.MapPost("/commands/shutdown", (DelayedActionRequest request, HttpContext ctx, PowerActionsService power, TaskLogStore taskLog, TimerSchedulerService timers) =>
+            RunPowerAction(ctx, power, taskLog, timers, PowerAction.Shutdown, request.DelaySeconds));
 
-        app.MapPost("/commands/restart", (DelayedActionRequest request, HttpContext ctx, PowerActionsService power, TaskLogStore taskLog) =>
-            RunPowerAction(ctx, power, taskLog, PowerAction.Restart, request.DelaySeconds));
+        app.MapPost("/commands/restart", (DelayedActionRequest request, HttpContext ctx, PowerActionsService power, TaskLogStore taskLog, TimerSchedulerService timers) =>
+            RunPowerAction(ctx, power, taskLog, timers, PowerAction.Restart, request.DelaySeconds));
 
-        app.MapPost("/commands/sleep", (HttpContext ctx, PowerActionsService power, TaskLogStore taskLog) =>
-            RunPowerAction(ctx, power, taskLog, PowerAction.Sleep, 0));
+        app.MapPost("/commands/sleep", (HttpContext ctx, PowerActionsService power, TaskLogStore taskLog, TimerSchedulerService timers) =>
+            RunPowerAction(ctx, power, taskLog, timers, PowerAction.Sleep, 0));
 
         app.MapPost("/commands/hibernate", (HttpContext ctx, PowerActionsService power, TaskLogStore taskLog) =>
         {
@@ -82,12 +83,21 @@ public static class CommandEndpoints
         ? "На ПК никто не вошёл в систему — эта команда требует активной сессии."
         : "Не удалось выполнить команду на ПК.";
 
-    private static IResult RunPowerAction(HttpContext ctx, PowerActionsService power, TaskLogStore taskLog, PowerAction action, int delaySeconds)
+    private static IResult RunPowerAction(HttpContext ctx, PowerActionsService power, TaskLogStore taskLog, TimerSchedulerService timers, PowerAction action, int delaySeconds)
     {
         try
         {
             power.Execute(action, delaySeconds);
             LogCommand(ctx, taskLog, action, delaySeconds);
+
+            // ПК прямо сейчас по-настоящему выключается/перезагружается (ручной командой,
+            // не в тестовом режиме-заглушке) — любой ещё не сработавший таймер из "прошлой
+            // жизни" агента отменяем, иначе он воскреснет и неожиданно выполнится сам при
+            // следующей загрузке (см. TimerSchedulerService.CancelAllPendingForRealPowerChange —
+            // баг-репорт: таймер, оставшийся Pending после ручного выключения раньше срока).
+            if (!power.SimulateDangerousActions && (action == PowerAction.Shutdown || action == PowerAction.Restart))
+                timers.CancelAllPendingForRealPowerChange();
+
             var data = delaySeconds > 0
                 ? new { scheduledAtUtc = DateTime.UtcNow.AddSeconds(delaySeconds) }
                 : null as object;
