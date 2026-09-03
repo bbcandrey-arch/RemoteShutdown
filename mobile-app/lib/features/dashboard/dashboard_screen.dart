@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/app_info.dart';
+import '../../core/help_dialog.dart';
 import '../../models/timer_task.dart';
 import '../../theme/app_theme.dart';
 import '../pc_list/pc_list_screen.dart';
@@ -58,7 +58,7 @@ class DashboardScreen extends ConsumerWidget {
                   ? null
                   : _renamePc(context, controller, state.profile!.deviceName),
               _MenuAction.unpair => _confirmUnpair(context, controller),
-              _MenuAction.help => _showHelp(context),
+              _MenuAction.help => showHelpDialog(context),
               _MenuAction.about => _showAbout(context),
             },
             itemBuilder: (_) => const [
@@ -196,41 +196,6 @@ void _showAbout(BuildContext context) {
     applicationName: AppInfo.name,
     applicationVersion: AppInfo.version,
     applicationLegalese: '© ${AppInfo.author}',
-  );
-}
-
-/// Краткая справка прямо в приложении + ссылка на полную инструкцию на GitHub —
-/// см. docs/user-guide.md и такую же вкладку "Помощь" в настройках Windows-агента.
-void _showHelp(BuildContext context) {
-  showDialog<void>(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      title: const Text('Справка'),
-      content: const SingleChildScrollView(
-        child: Text(
-          'Как подключить телефон\n'
-          '1. Откройте настройки агента на ПК (иконка в трее → Настройки).\n'
-          '2. На вкладке «Сопряжение» отсканируйте QR-код, либо введите IP, порт и PIN вручную.\n'
-          '3. Телефон и ПК должны быть в одной Wi-Fi сети.\n\n'
-          'Не получается подключиться\n'
-          '• Проверьте, что сеть на телефоне и ПК одна и та же (не гостевая).\n'
-          '• На ПК: вкладка «Общие» → «Добавить правило в брандмауэр».\n'
-          '• Убедитесь, что значок агента есть в трее Windows.\n\n'
-          '«На ПК никто не вошёл в систему» при громкости/медиа/тачпаде — эти команды нужен '
-          'вошедший пользователь на ПК (см. полную инструкцию).',
-        ),
-      ),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Закрыть')),
-        FilledButton(
-          onPressed: () {
-            Navigator.pop(ctx);
-            launchUrl(Uri.parse(AppInfo.userGuideUrl), mode: LaunchMode.externalApplication);
-          },
-          child: const Text('Полная инструкция'),
-        ),
-      ],
-    ),
   );
 }
 

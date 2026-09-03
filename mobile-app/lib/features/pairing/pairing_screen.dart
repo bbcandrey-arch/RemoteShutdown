@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/help_dialog.dart';
 import 'pairing_controller.dart';
 import 'qr_scan_screen.dart';
 
@@ -60,7 +61,19 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
     });
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Подключение к ПК')),
+      appBar: AppBar(
+        title: const Text('Подключение к ПК'),
+        // Первый экран, который видит новый пользователь — доступ к инструкции нужен
+        // именно здесь ("как развернуть агент, где скачать, как организовать
+        // сопряжение"), а не только в меню Dashboard, до которого ещё нужно дойти.
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.help_outline),
+            tooltip: 'Справка',
+            onPressed: () => showHelpDialog(context),
+          ),
+        ],
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: switch (state) {
