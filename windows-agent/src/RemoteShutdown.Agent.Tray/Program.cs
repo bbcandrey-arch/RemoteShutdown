@@ -41,9 +41,14 @@ internal static class Program
                 form.Activate();
             });
             Application.Run(form);
+            singleInstance.ReleaseMutex();
             return;
         }
 
         Application.Run(new TrayApplicationContext());
+        // Явно отпускаем мьютекс, а не полагаемся только на Dispose() в конце using —
+        // Dispose() без предварительного ReleaseMutex() оставляет ОС считать его
+        // "брошенным" (abandoned) вместо штатно освобождённого.
+        singleInstance.ReleaseMutex();
     }
 }
