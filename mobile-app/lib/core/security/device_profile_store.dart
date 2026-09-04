@@ -43,20 +43,38 @@ class DeviceProfileStore {
     await prefs.setStringList(_listKey, profiles.map((p) => jsonEncode(p.toJson())).toList());
   }
 
-  /// Добавляет новый профиль или обновляет существующий с тем же clientId (например,
-  /// при переподключении после отзыва доступа на ПК — clientId там уже новый, так что
-  /// на практике это всегда добавление новой записи). Заодно помечает его как
-  /// последний использованный.
-  Future<void> upsert(DeviceProfile profile) async {
+  /// Добавляет новый профиль или обновляет существующий. clientId сам по себе для
+  /// дедупликации не годится — при КАЖДОМ повторном сопряжении сервер выдаёт новый
+  /// clientId (см. PairingService.ConfirmPairing на стороне агента), даже если это тот
+  /// же самый физический ПК; без явной проверки один и тот же ПК копился бы в списке
+  /// при каждом повторном сканировании QR/вводе PIN. Поэтому дополнительно ищем
+  /// совпадение по host+port — тот же адрес считаем тем же ПК и заменяем старую запись,
+  /// а не добавляем ещё одну.
+  ///
+  /// Возвращает clientId вытесненного дубликата (если он был) — вызывающая сторона
+  /// обязана почистить его secret/офлайн-очередь (см. PairingController.confirmPin):
+  /// со старым clientId агент всё равно эту пару уже переписал новой.
+  Future<String?> upsert(DeviceProfile profile) async {
     final all = await loadAll();
-    final index = all.indexWhere((p) => p.clientId == profile.clientId);
-    if (index >= 0) {
-      all[index] = profile;
+    final sameClientIdIndex = all.indexWhere((p) => p.clientId == profile.clientId);
+    if (sameClientIdIndex >= 0) {
+      all[sameClientIdIndex] = profile;
+      await _saveAll(all);
+      await setLastUsed(profile.clientId);
+      return null;
+    }
+
+    final duplicateIndex = all.indexWhere((p) => p.host == profile.host && p.port == profile.port);
+    String? replacedClientId;
+    if (duplicateIndex >= 0) {
+      replacedClientId = all[duplicateIndex].clientId;
+      all[duplicateIndex] = profile;
     } else {
       all.add(profile);
     }
     await _saveAll(all);
     await setLastUsed(profile.clientId);
+    return replacedClientId;
   }
 
   /// Локальное переименование ПК в списке (не трогает сам ПК/QR — просто как телефон

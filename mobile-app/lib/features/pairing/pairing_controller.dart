@@ -10,6 +10,7 @@ import '../../core/network/api_exception.dart';
 import '../../core/network/tls_pinning_client.dart';
 import '../../core/security/device_profile_store.dart';
 import '../../core/security/secure_storage_service.dart';
+import '../../core/storage/pending_actions_queue.dart';
 import '../../models/device_profile.dart';
 
 sealed class PairingState {}
@@ -161,8 +162,16 @@ class PairingController extends StateNotifier<PairingState> {
       await _secureStorage.saveSharedSecret(clientId, Uint8List.fromList(base64Decode(sharedSecretB64)));
       // upsert (не save) — сохраняет этот ПК как ещё один профиль, не стирая уже
       // сопряжённые (docs/roadmap.md, "несколько агентов"), и сразу помечает его
-      // последним использованным.
-      await _profileStore.upsert(profile);
+      // последним использованным. Если это повторное сопряжение того же ПК (тот же
+      // host+port, но новый clientId — так у нас происходит при каждом пересопряжении),
+      // upsert сам заменит старую запись и отдаст назад её clientId, чтобы почистить
+      // здесь то, что от неё осталось: старый secret и офлайн-очередь ей больше не
+      // пригодятся (со старым clientId агент эту пару уже переписал новой).
+      final replacedClientId = await _profileStore.upsert(profile);
+      if (replacedClientId != null) {
+        await _secureStorage.deleteSharedSecret(replacedClientId);
+        await PendingActionsQueue(replacedClientId).clear();
+      }
 
       state = PairingSuccess(profile);
     } on ApiException catch (e) {
