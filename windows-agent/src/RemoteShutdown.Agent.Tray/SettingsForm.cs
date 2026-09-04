@@ -34,6 +34,14 @@ public sealed class SettingsForm : Form
     private CheckBox _autostartCheckBox = null!;
     private TextBox _deviceNameTextBox = null!;
     private Label _firewallStatusLabel = null!;
+    private bool _allowRealClose;
+
+    /// <summary>
+    /// Вызывается перед Application.Exit() (см. TrayApplicationContext.ExitApplication) —
+    /// без этого FormClosing отменял бы закрытие этого окна и тем самым гасил весь выход
+    /// из приложения, если окно настроек было открыто в момент "Выход" из трея.
+    /// </summary>
+    public void AllowRealClose() => _allowRealClose = true;
 
     /// <summary>
     /// TODO: заменить на настоящий адрес репозитория, когда он опубликован на GitHub —
@@ -80,7 +88,21 @@ public sealed class SettingsForm : Form
         Icon = AppIcon.Load(); // без этого WinForms подставляет generic-иконку формы в заголовке окна
         StartPosition = FormStartPosition.CenterScreen;
         if (hideInsteadOfClose)
-            FormClosing += (_, e) => { e.Cancel = true; Hide(); }; // трей живёт дольше окна — просто прячем его
+        {
+            // трей живёт дольше окна — просто прячем его при закрытии крестиком. НО:
+            // это же самое e.Cancel=true срабатывает и на попытку Application.Exit()
+            // закрыть это окно при выходе из трея через контекстное меню — если
+            // окно настроек было открыто в этот момент, отмена закрытия гасила ВЕСЬ
+            // Application.Exit() целиком (сам процесс не завершался, хотя иконка в
+            // трее уже пропадала — см. TrayApplicationContext.ExitApplication). Флаг
+            // _allowRealClose снимает это исключение именно для выхода из приложения.
+            FormClosing += (_, e) =>
+            {
+                if (_allowRealClose) return;
+                e.Cancel = true;
+                Hide();
+            };
+        }
 
         _tabs = new TabControl { Dock = DockStyle.Fill };
         _tabs.TabPages.Add(BuildPairingTab());

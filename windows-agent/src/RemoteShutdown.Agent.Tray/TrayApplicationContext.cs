@@ -185,6 +185,12 @@ public sealed class TrayApplicationContext : ApplicationContext
         _singleInstanceWatcher.Stop();
         _notifyIcon.Visible = false;
         _relayClient.Dispose();
+        // Если окно настроек сейчас открыто, его FormClosing (см. SettingsForm,
+        // hideInsteadOfClose) иначе отменил бы попытку Application.Exit() закрыть его —
+        // и тем самым тихо гасил весь выход целиком: иконка уже пропадала (строка выше),
+        // а сам процесс оставался висеть. Баг-репорт: "Выход" не убивал процесс именно
+        // когда окно настроек было открыто.
+        _settingsForm?.AllowRealClose();
         Application.Exit();
     }
 }
