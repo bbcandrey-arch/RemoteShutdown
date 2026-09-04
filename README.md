@@ -8,7 +8,7 @@
 **→ [Инструкция для пользователя](docs/user-guide.md)** — установка, первое
 подключение, решение проблем.
 
-**→ [Releases](https://github.com/USERNAME/remote_shutdown/releases)** —
+**→ [Releases](https://github.com/bbcandrey-arch/RemoteShutdown/releases)** —
 готовые сборки: инсталлятор Windows-агента и APK для Android.
 
 ## Из чего состоит

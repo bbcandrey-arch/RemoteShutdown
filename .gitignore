@@ -30,6 +30,9 @@ Thumbs.db
 *.db
 *.db-shm
 *.db-wal
+*.jks
+*.keystore
+mobile-app/android/key.properties
 
 # Готовые сборки (exe/apk) — слишком тяжёлые для истории git, пересобираются
 # по инструкции в distrib/README.md

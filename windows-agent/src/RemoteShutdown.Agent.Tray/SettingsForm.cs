@@ -43,12 +43,9 @@ public sealed class SettingsForm : Form
     /// </summary>
     public void AllowRealClose() => _allowRealClose = true;
 
-    /// <summary>
-    /// TODO: заменить на настоящий адрес репозитория, когда он опубликован на GitHub —
-    /// см. docs/user-guide.md (та же ссылка используется и в мобильном приложении,
-    /// AppInfo.RepoUrl/HelpDocUrl).
-    /// </summary>
-    private const string RepoUrl = "https://github.com/USERNAME/remote_shutdown";
+    /// <summary>См. docs/user-guide.md — та же ссылка используется и в мобильном
+    /// приложении (AppInfo.repoUrl/userGuideUrl).</summary>
+    private const string RepoUrl = "https://github.com/bbcandrey-arch/RemoteShutdown";
     private const string UserGuideUrl = RepoUrl + "/blob/main/docs/user-guide.md";
 
     /// <summary>

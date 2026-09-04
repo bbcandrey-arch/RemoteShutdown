@@ -25,7 +25,7 @@
 ## Установка на ПК (Windows)
 
 1. Скачайте `RemoteShutdownAgent-Setup-x.x.x.exe` из
-   [Releases](https://github.com/USERNAME/remote_shutdown/releases) этого репозитория.
+   [Releases](https://github.com/bbcandrey-arch/RemoteShutdown/releases) этого репозитория.
 2. Запустите — установщику один раз потребуются права администратора (UAC), это
    нормально: он ставит службу Windows, которая работает в фоне и переживает
    перезагрузку ПК (см. ниже).
@@ -46,7 +46,7 @@
 
 1. Скачайте `app-arm64-v8a-release.apk` (подходит для подавляющего большинства
    телефонов; `armeabi-v7a` — для очень старых устройств) из
-   [Releases](https://github.com/USERNAME/remote_shutdown/releases).
+   [Releases](https://github.com/bbcandrey-arch/RemoteShutdown/releases).
 2. Откройте файл на телефоне. Android спросит разрешение на установку из
    неизвестного источника — разрешите только для этого файла (это ожидаемо:
    приложение не публикуется в Google Play).
@@ -137,4 +137,4 @@
 
 ---
 
-Исходный код и новые версии — [https://github.com/USERNAME/remote_shutdown](https://github.com/USERNAME/remote_shutdown).
+Исходный код и новые версии — [https://github.com/bbcandrey-arch/RemoteShutdown](https://github.com/bbcandrey-arch/RemoteShutdown).

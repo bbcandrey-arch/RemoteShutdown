@@ -8,9 +8,8 @@ class AppInfo {
   static const String version = '2.0.0';
   static const String author = 'vol.and';
 
-  // TODO: заменить на настоящий адрес репозитория, когда он опубликован на
-  // GitHub — та же ссылка используется и в трее Windows-агента (SettingsForm,
-  // RepoUrl/UserGuideUrl). APK и инсталлятор публикуются в Releases того же репо.
-  static const String repoUrl = 'https://github.com/USERNAME/remote_shutdown';
+  // Та же ссылка используется и в трее Windows-агента (SettingsForm, RepoUrl/
+  // UserGuideUrl). APK и инсталлятор публикуются в Releases того же репозитория.
+  static const String repoUrl = 'https://github.com/bbcandrey-arch/RemoteShutdown';
   static const String userGuideUrl = '$repoUrl/blob/main/docs/user-guide.md';
 }
