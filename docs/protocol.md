@@ -93,7 +93,7 @@ signature = HMAC_SHA256(sharedSecret, method + "\n" + path + "\n" + timestamp + 
 ```
 
 Правила проверки на агенте:
-- `|now - timestamp| > 30000ms` → `error.code = "STALE_REQUEST"`.
+- `|now - timestamp| > 180000ms` (3 минуты — см. docs/security.md, почему не 30с) → `error.code = "STALE_REQUEST"`.
 - Повтор `nonce` для данного `clientId` в пределах окна валидности → `error.code = "REPLAY_DETECTED"`.
 - Неизвестный/отозванный `clientId` → HTTP 401, `error.code = "UNKNOWN_CLIENT"`.
 

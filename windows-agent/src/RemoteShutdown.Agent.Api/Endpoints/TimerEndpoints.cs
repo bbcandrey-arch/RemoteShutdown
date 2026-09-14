@@ -13,12 +13,12 @@ public static class TimerEndpoints
         app.MapPost("/timers", (CreateTimerRequest request, HttpContext ctx, TimerSchedulerService scheduler) =>
         {
             if (!Enum.TryParse<ScheduledAction>(request.Action, ignoreCase: true, out var action))
-                return Results.Json(ApiResponse.Fail(ctx.GetRequestId(), ErrorCodes.InternalError, $"Unknown timer action '{request.Action}'."), statusCode: 400);
+                return Results.Json(ApiResponse.Fail(ctx.GetRequestId(), ErrorCodes.InternalError, $"Unknown timer action '{request.Action}'."), statusCode: 400, options: ApiJson.Options);
 
             var scheduledAtUtc = request.ScheduledAtUtc
                 ?? (request.DelaySeconds is { } delay ? DateTime.UtcNow.AddSeconds(delay) : (DateTime?)null);
             if (scheduledAtUtc is null)
-                return Results.Json(ApiResponse.Fail(ctx.GetRequestId(), ErrorCodes.InternalError, "Provide delaySeconds or scheduledAtUtc."), statusCode: 400);
+                return Results.Json(ApiResponse.Fail(ctx.GetRequestId(), ErrorCodes.InternalError, "Provide delaySeconds or scheduledAtUtc."), statusCode: 400, options: ApiJson.Options);
 
             var device = (PairedDevice)ctx.Items["Device"]!;
             var timer = scheduler.Create(action, scheduledAtUtc.Value, device.ClientId, ClientIp(ctx));
@@ -50,7 +50,7 @@ public static class TimerEndpoints
             };
 
             if (updated is null)
-                return Results.Json(ApiResponse.Fail(requestId, ErrorCodes.TimerNotFound, $"Timer '{id}' not found or action invalid."), statusCode: 404);
+                return Results.Json(ApiResponse.Fail(requestId, ErrorCodes.TimerNotFound, $"Timer '{id}' not found or action invalid."), statusCode: 404, options: ApiJson.Options);
 
             return Results.Ok(ApiResponse.Ok(requestId, new
             {

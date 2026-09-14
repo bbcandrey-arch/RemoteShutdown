@@ -1,4 +1,21 @@
+using System.Text.Json;
+
 namespace RemoteShutdown.Agent.Api;
+
+/// <summary>
+/// Общие опции сериализации для ВСЕХ ответов агента — camelCase, как у успешных
+/// Results.Ok(...) (те подхватывают DI-настройки JsonOptions автоматически). Без
+/// явной передачи этих опций в Results.Json(..., statusCode: ...) (так собраны все
+/// ответы об ошибке — HmacAuthMiddleware и каждый Endpoints-файл) .NET сериализовал их
+/// PascalCase-как-в-коде ("Status", "Error", "Code" вместо "status"/"error"/"code") —
+/// реальный найденный баг: клиент (Dart) искал только camelCase-ключи и поэтому НИКОГДА
+/// не мог распознать настоящую причину ошибки, всегда падая на generic "Unknown error".
+/// См. баг-репорт "ПК недоступен" без внятной причины.
+/// </summary>
+public static class ApiJson
+{
+    public static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web);
+}
 
 /// <summary>Response envelope from docs/protocol.md §3.</summary>
 public sealed class ApiError

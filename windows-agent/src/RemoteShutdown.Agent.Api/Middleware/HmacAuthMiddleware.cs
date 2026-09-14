@@ -12,7 +12,14 @@ namespace RemoteShutdown.Agent.Api.Middleware;
 public sealed class HmacAuthMiddleware
 {
     private static readonly string[] UnauthenticatedPaths = ["/pair/init", "/pair/confirm"];
-    private const long TimestampToleranceMs = 30_000;
+    // 3 минуты, а не 30 секунд — баг-репорт: часы ПК без NTP-синхронизации (источник
+    // "Local CMOS Clock") незаметно "уплыли" на пару минут от реального времени, и это
+    // молча обрывало все подписанные запросы с телефона (правильно синхронизированного)
+    // ошибкой "Request timestamp outside the validity window" — без внятной подсказки,
+    // в чём дело (см. docs/user-guide.md, "Решение проблем"). От повтора запроса (replay)
+    // и так защищает отдельно NonceCache — это окно нужно только как разумная граница
+    // "часы вообще не должны так сильно расходиться", а не единственная линия защиты.
+    private const long TimestampToleranceMs = 180_000;
 
     private readonly RequestDelegate _next;
 
@@ -90,6 +97,11 @@ public sealed class HmacAuthMiddleware
         context.Response.StatusCode = statusCode;
         context.Response.ContentType = "application/json";
         var response = ApiResponse.Fail(requestId, code, message);
-        await context.Response.WriteAsync(JsonSerializer.Serialize(response));
+        // ApiJson.Options — иначе тут (в отличие от Results.Ok(...) на успешных ответах)
+        // JsonSerializer.Serialize без опций сериализует PascalCase-как-в-коде, а не
+        // camelCase, который ждёт клиент (Dart ApiClient._parse) — настоящая причина
+        // 401/сетевых ошибок (INVALID_SIGNATURE, UNKNOWN_CLIENT и т.п.) тонула в generic
+        // "Unknown error". См. Envelope.cs, ApiJson.
+        await context.Response.WriteAsync(JsonSerializer.Serialize(response, ApiJson.Options));
     }
 }

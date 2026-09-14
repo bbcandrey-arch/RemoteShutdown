@@ -122,14 +122,21 @@ class ApiClient {
           statusCode: response.statusCode);
     }
 
-    if (json['status'] != 'ok') {
-      final error = json['error'] as Map<String, dynamic>?;
+    // Сервер теперь всегда отдаёт camelCase (см. windows-agent Envelope.cs, ApiJson.Options —
+    // раньше Results.Json(...) на ответах об ошибке сериализовал PascalCase в отличие от
+    // Results.Ok(...), и КАЖДАЯ ошибка сервера тонула тут в generic "Unknown error", а
+    // настоящий код вроде UNKNOWN_CLIENT/STALE_REQUEST никогда не доходил до пользователя —
+    // баг-репорт "ПК недоступен" без внятной причины). Разбираем оба варианта регистра
+    // как защиту про запас, а не только потому, что сейчас это строго обязательно.
+    final status = json['status'] ?? json['Status'];
+    if (status != 'ok') {
+      final error = (json['error'] ?? json['Error']) as Map<String, dynamic>?;
       throw ApiException(
-        error?['code'] as String? ?? 'INTERNAL_ERROR',
-        error?['message'] as String? ?? 'Unknown error',
+        (error?['code'] ?? error?['Code']) as String? ?? 'INTERNAL_ERROR',
+        (error?['message'] ?? error?['Message']) as String? ?? 'Unknown error',
         statusCode: response.statusCode,
       );
     }
-    return (json['data'] as Map<String, dynamic>?) ?? const {};
+    return ((json['data'] ?? json['Data']) as Map<String, dynamic>?) ?? const {};
   }
 }

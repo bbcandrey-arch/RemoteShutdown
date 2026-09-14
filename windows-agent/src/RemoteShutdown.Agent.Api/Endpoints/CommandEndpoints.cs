@@ -33,11 +33,11 @@ public static class CommandEndpoints
             }
             catch (HibernateNotSupportedException ex)
             {
-                return Results.Json(ApiResponse.Fail(ctx.GetRequestId(), ErrorCodes.HibernateNotSupported, ex.Message), statusCode: 409);
+                return Results.Json(ApiResponse.Fail(ctx.GetRequestId(), ErrorCodes.HibernateNotSupported, ex.Message), statusCode: 409, options: ApiJson.Options);
             }
             catch (Exception ex)
             {
-                return Results.Json(ApiResponse.Fail(ctx.GetRequestId(), ErrorCodes.InternalError, ex.Message), statusCode: 500);
+                return Results.Json(ApiResponse.Fail(ctx.GetRequestId(), ErrorCodes.InternalError, ex.Message), statusCode: 500, options: ApiJson.Options);
             }
         });
 
@@ -76,7 +76,7 @@ public static class CommandEndpoints
         if (response.Ok) return Results.Ok(ApiResponse.Ok(requestId));
 
         var statusCode = response.Error == ErrorCodes.NoActiveSession ? 409 : 500;
-        return Results.Json(ApiResponse.Fail(requestId, response.Error ?? ErrorCodes.InternalError, ErrorMessage(response.Error)), statusCode: statusCode);
+        return Results.Json(ApiResponse.Fail(requestId, response.Error ?? ErrorCodes.InternalError, ErrorMessage(response.Error)), statusCode: statusCode, options: ApiJson.Options);
     }
 
     private static string ErrorMessage(string? code) => code == ErrorCodes.NoActiveSession
@@ -105,7 +105,7 @@ public static class CommandEndpoints
         }
         catch (Exception ex)
         {
-            return Results.Json(ApiResponse.Fail(ctx.GetRequestId(), ErrorCodes.InternalError, ex.Message), statusCode: 500);
+            return Results.Json(ApiResponse.Fail(ctx.GetRequestId(), ErrorCodes.InternalError, ex.Message), statusCode: 500, options: ApiJson.Options);
         }
     }
 
