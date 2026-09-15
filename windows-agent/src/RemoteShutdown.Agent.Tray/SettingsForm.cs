@@ -248,6 +248,7 @@ public sealed class SettingsForm : Form
         _interfaceComboBox.Items.Clear();
         foreach (var (interfaceName, address) in interfaces)
             _interfaceComboBox.Items.Add(new InterfaceItem(interfaceName, address));
+        ResizeInterfaceComboBoxToFitItems();
 
         var selectedIndex = 0;
         if (preferredIp is not null)
@@ -308,6 +309,23 @@ public sealed class SettingsForm : Form
     private sealed record InterfaceItem(string InterfaceName, string Address)
     {
         public override string ToString() => $"{InterfaceName} ({Address})";
+    }
+
+    /// <summary>
+    /// DropDownList не переносит и не сокращает текст многоточием — при длинных именах
+    /// интерфейсов (Wi-Fi адаптеры, VPN-клиенты и т.п.) IP-адрес в скобках просто не
+    /// помещался в поле фиксированной ширины и был не виден (issue #1). Подбираем ширину
+    /// под самый длинный пункт списка вместо фиксированного значения "на глаз".
+    /// </summary>
+    private void ResizeInterfaceComboBoxToFitItems()
+    {
+        var maxTextWidth = _interfaceComboBox.Items.Cast<object>()
+            .Select(item => TextRenderer.MeasureText(item.ToString(), _interfaceComboBox.Font).Width)
+            .DefaultIfEmpty(0)
+            .Max();
+
+        // + стрелка раскрытия списка и внутренние отступы поля
+        _interfaceComboBox.Width = Math.Max(320, maxTextWidth + SystemInformation.VerticalScrollBarWidth + 24);
     }
 
     private void RefreshCurrentPinLabel()
