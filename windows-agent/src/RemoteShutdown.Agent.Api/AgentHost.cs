@@ -33,6 +33,16 @@ public static class AgentHost
         // Storage + settings need to exist before we can decide the port / load the cert.
         var db = new AgentDatabase();
         db.EnsureCreated();
+
+        // Служба работает от LocalSystem, а Tray — от обычного пользователя, но пишет в
+        // ту же папку (agent.db, pairing-qr.png) — без явного гранта здесь у обычных
+        // пользователей по умолчанию нет права записи в {commonappdata}, и Tray падает
+        // с UnauthorizedAccessException при первом же открытии настроек (см.
+        // AgentDataFolderAcl). Делаем это здесь, а не в конструкторе AgentDatabase, —
+        // Tray тоже создаёт AgentDatabase, но у него самого не хватит прав раздать этот
+        // грант, и делать это в общем коде для обоих процессов только зря шумело бы.
+        AgentDataFolderAcl.EnsureWritableByInteractiveUsers(Path.GetDirectoryName(db.DbPath)!);
+
         var settingsStore = new SettingsStore(db);
 
         // Порт/тестовый режим/имя ПК/PIN по умолчанию для незнакомой БД — см. AgentDefaults
